@@ -3,18 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>曼谷 6 天 5 夜親子尊享之旅</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="曼谷親子遊">
     
-    <!-- 加入這一行 -->
-    <link rel="icon" href="./favicon.png" type="image/png">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ... 其他的標籤 ... -->
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>曼谷 6 天 5 夜親子尊享之旅</title>
+
+    <!-- 關鍵修改：iPhone 主畫面圖示設定 -->
+    <link rel="apple-touch-icon" href="./icon.jpg">
+    <link rel="icon" href="./icon.jpg">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Vue 3 -->
@@ -24,6 +22,15 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        
+        window.firebaseModules = { initializeApp, getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, getAuth, signInAnonymously, onAuthStateChanged };
+    </script>
+
     <style>
         body, #app { height: 100vh; height: 100dvh; }
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #F3F4F6; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
@@ -369,6 +376,8 @@
                         const savedTripId = localStorage.getItem('tripId');
                         if (savedTripId) {
                             await joinCloudTrip(savedTripId);
+                        } else {
+                            // First time? Just show setup screen
                         }
                     } catch (e) {
                         console.error("Firebase init error", e);
@@ -412,6 +421,7 @@
                     isLoading.value = true;
                     tripId.value = id;
                     
+                    const { doc, onSnapshot, setDoc } = window.firebaseModules;
                     tripDocRef = doc(db, 'artifacts', 'bangkok_app', 'public', 'data', 'trips', id);
 
                     try {
@@ -450,6 +460,7 @@
 
                 const saveData = () => {
                     if (isCloudMode.value && tripDocRef) {
+                        const { updateDoc } = window.firebaseModules;
                         updateDoc(tripDocRef, {
                             tripDays: tripDays.value,
                             expenses: expenses.value,
