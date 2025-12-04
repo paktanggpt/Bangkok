@@ -13,16 +13,6 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-        
-        // 將 Firebase 函數掛載到 window 以便 Vue 使用
-        window.firebaseModules = { initializeApp, getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, getAuth, signInAnonymously, onAuthStateChanged };
-    </script>
-
     <style>
         body, #app { height: 100vh; height: 100dvh; }
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #F3F4F6; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
@@ -50,7 +40,9 @@
             <div>
                 <h1 class="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
                     <span class="text-primary">Sawadee</span> Bangkok 🇹🇭
-                    <span v-if="isCloudMode" class="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full animate-pulse">連線中</span>
+                    <span v-if="isCloudMode" class="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> 線上
+                    </span>
                 </h1>
                 <p class="text-xs text-gray-500 font-medium mt-1">
                     {{ tripId ? '旅程代碼: ' + tripId : '親子尊享之旅 (12/26 - 12/31)' }}
@@ -75,7 +67,7 @@
                 <div class="w-full space-y-3 px-4">
                     <div v-if="isLoading" class="flex flex-col items-center justify-center text-gray-400 py-4">
                         <div class="loader mb-3"></div>
-                        <p class="text-xs">正在連線至雲端...</p>
+                        <p class="text-xs">正在連線至雲端資料庫...</p>
                     </div>
                     
                     <div v-else class="bg-white p-6 rounded-2xl shadow-sm border border-blue-100 space-y-4">
@@ -96,6 +88,10 @@
 
                         <button @click="createCloudTrip" class="w-full py-3 bg-orange-50 border border-orange-200 text-orange-600 rounded-xl font-bold hover:bg-orange-100">
                             建立一個新旅程
+                        </button>
+                        
+                        <button @click="initOffline" class="text-xs text-gray-400 underline mt-2">
+                            跳過，使用單機版
                         </button>
                     </div>
                 </div>
@@ -261,10 +257,12 @@
 
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         const { createApp, ref, computed, onMounted, watch } = Vue;
 
-        // ** 您的 Firebase 設定檔 (已嵌入) **
         const firebaseConfig = {
           apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
           authDomain: "bangkok-trip-app.firebaseapp.com",
@@ -275,7 +273,6 @@
           measurementId: "G-EWMSXN3G1H"
         };
 
-        // 預設行程
         const defaultItinerary = [
             { id: 1, date: '12/26 (五)', title: '啟程曼谷', items: [
                 { id: 101, time: '12:05', title: '抵達 BKK 機場', location: 'Suvarnabhumi Airport', desc: '領完行李後，前往預定好的專車接機點集合。', transport: '包車/接送' },
@@ -311,7 +308,6 @@
             ]}
         ];
         
-        // Michelin Data
         const defaultMichelin = [
             { name: "Jay Fai (痣姐)", engName: "Raan Jay Fai", area: "舊城區 (Old Town)", category: "Old Town", level: "1 Star", type: "街頭熱炒", mustEat: "黃金蟹肉蛋捲 (Crab Omelette), 醉漢麵", price: "฿฿฿฿", note: "價格昂貴，需排隊數小時或預約。唯一米芝蓮星級路邊攤。" },
             { name: "Thipsamai (鬼門泰式炒麵)", engName: "Thipsamai Pad Thai Pratoopee", area: "舊城區 (Old Town)", category: "Old Town", level: "Bib", type: "炒河粉", mustEat: "蛋包泰式炒河 (Superb Pad Thai)", price: "฿฿", note: "就在 Jay Fai 旁邊，排隊人潮多但流動快。橘子汁必點！" },
@@ -333,7 +329,7 @@
                 const hasInitialized = ref(false);
                 const isLoading = ref(false);
                 const isCloudMode = ref(false);
-                const hasFirebaseConfig = ref(true); // Hardcoded config = true
+                const hasFirebaseConfig = ref(true); // Config is now built-in
                 const tripId = ref('');
                 const inputTripId = ref('');
                 
@@ -354,12 +350,14 @@
                 onMounted(async () => {
                     // Try to init Firebase immediately
                     try {
-                        await initFirebase(firebaseConfig);
+                        const app = initializeApp(firebaseConfig);
+                        db = getFirestore(app);
+                        auth = getAuth(app);
+                        await signInAnonymously(auth);
+                        
                         const savedTripId = localStorage.getItem('tripId');
                         if (savedTripId) {
                             await joinCloudTrip(savedTripId);
-                        } else {
-                            // First time? Just show setup screen
                         }
                     } catch (e) {
                         console.error("Firebase init error", e);
@@ -387,14 +385,6 @@
                     if (localFood) customFoodSpots.value = JSON.parse(localFood);
                 };
 
-                const initFirebase = async (config) => {
-                    const { initializeApp, getFirestore, getAuth, signInAnonymously } = window.firebaseModules;
-                    const app = initializeApp(config);
-                    db = getFirestore(app);
-                    auth = getAuth(app);
-                    await signInAnonymously(auth);
-                };
-
                 const createCloudTrip = async () => {
                     const newId = (inputTripId.value || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
                     await connectToTrip(newId, true);
@@ -407,11 +397,10 @@
                 };
 
                 const connectToTrip = async (id, isNew) => {
-                    if (!db) return alert("Firebase 連線錯誤");
+                    if (!db) return alert("無法連線到資料庫");
                     isLoading.value = true;
                     tripId.value = id;
                     
-                    const { doc, onSnapshot, setDoc } = window.firebaseModules;
                     tripDocRef = doc(db, 'artifacts', 'bangkok_app', 'public', 'data', 'trips', id);
 
                     try {
@@ -450,7 +439,6 @@
 
                 const saveData = () => {
                     if (isCloudMode.value && tripDocRef) {
-                        const { updateDoc } = window.firebaseModules;
                         updateDoc(tripDocRef, {
                             tripDays: tripDays.value,
                             expenses: expenses.value,
