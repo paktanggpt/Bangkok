@@ -24,8 +24,10 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .scrolling-touch { -webkit-overflow-scrolling: touch; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #FF8C00; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         [v-cloak] { display: none !important; }
+        
+        .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
+        .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(20px); }
     </style>
     <script>
         tailwind.config = {
@@ -39,6 +41,19 @@
 
     <div id="app" v-cloak class="flex flex-col relative max-w-md mx-auto bg-white shadow-2xl h-full">
         
+        <!-- Error Toast (Global) -->
+        <transition name="toast">
+            <div v-if="saveError" class="fixed bottom-24 left-4 right-4 bg-red-600 text-white p-4 rounded-xl shadow-2xl z-50 flex items-start gap-3">
+                <i class="fa-solid fa-triangle-exclamation mt-1"></i>
+                <div class="flex-1">
+                    <h4 class="font-bold text-sm">儲存失敗，已轉為單機模式</h4>
+                    <p class="text-xs opacity-90 mt-1">{{ saveError }}</p>
+                    <p class="text-xs font-bold mt-2 underline">您的資料已保存在本地，不會遺失。</p>
+                </div>
+                <button @click="saveError = null" class="text-white opacity-50 hover:opacity-100"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </transition>
+
         <!-- Header -->
         <header class="bg-white px-5 pt-10 pb-4 shadow-sm z-10 flex justify-between items-center sticky top-0 shrink-0">
             <div>
@@ -52,7 +67,7 @@
                     </span>
                 </h1>
                 <p class="text-xs text-gray-500 font-medium mt-1">
-                    {{ tripId ? '旅程: ' + tripId : '親子尊享之旅 (12/26 - 12/31)' }}
+                    {{ tripId ? '旅程: ' + tripId : '親子尊享之旅' }}
                 </p>
             </div>
             <button @click="showSettings = true" class="text-gray-400 hover:text-primary transition relative">
@@ -250,10 +265,17 @@
                 <div v-if="isCloudMode" class="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
                     <p class="text-xs text-green-700 font-bold mb-1"><i class="fa-solid fa-cloud-check mr-1"></i> 已連線至雲端</p>
                     <p class="text-[10px] text-gray-500 mb-1">旅程代碼: <span class="font-mono bg-white px-1 border rounded select-all">{{ tripId }}</span></p>
+                    <p class="text-[10px] text-gray-400">UID: {{ authUid || '未登入' }}</p>
                 </div>
                 <div v-else class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
                     <p class="text-xs text-gray-600 font-bold mb-1">使用單機模式</p>
                     <p class="text-[10px] text-gray-400">資料僅存在此裝置</p>
+                </div>
+
+                <div v-if="isCloudMode" class="mb-4 p-3 bg-blue-50 rounded-xl text-xs text-blue-800 border border-blue-100">
+                    <p class="font-bold mb-1"><i class="fa-solid fa-database"></i> 存檔失敗？權限不足？</p>
+                    <p>請到 Firebase Console -> Firestore Database -> Rules，將規則修改為：</p>
+                    <code class="block bg-white p-2 mt-1 rounded border border-blue-100 font-mono">allow read, write: if true;</code>
                 </div>
 
                 <div class="mb-4">
@@ -293,10 +315,12 @@
                 const showConfigModal = ref(false);
                 const configInput = ref('');
                 const hasCustomConfig = ref(false);
+                const saveError = ref(null);
 
                 let tripDocRef = null;
                 let unsubscribeSnapshot = null;
                 const currentUser = ref(null);
+                const authUid = ref('');
                 
                 // Firebase variables
                 let app, auth, db;
@@ -310,7 +334,7 @@
                         { id: 103, time: '15:30', title: 'Chef Ple 芒果糯米飯', location: 'Chef Ple Thai Mango Sticky Rice', desc: '在 Times Square Building 旁。可外帶回飯店吃。', transport: '步行/TukTuk' },
                         { id: 104, time: '17:30', title: 'EmSphere 商場晚餐', location: 'EmSphere', thaiAddr: '628 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย', desc: '餐廳：Kub Kao Kub Pla (吃飯吃魚)。環境舒適，口味適合全家。', transport: 'Grab/包車', tags: ['晚餐'] }
                     ]},
-                    // ... (other days omitted for brevity but logic is same)
+                    // ... (其他天數保持原樣，為節省空間省略，實際執行時請保留)
                 ];
                 
                 const defaultMichelin = [
@@ -514,7 +538,7 @@
                     }));
                 };
 
-                const saveData = () => {
+                const saveData = async () => {
                     if (isCloudMode.value && tripDocRef) {
                         const dataToSave = sanitize({
                             tripDays: tripDays.value,
@@ -523,13 +547,27 @@
                             customFoodSpots: customFoodSpots.value
                         });
                         
-                        updateDoc(tripDocRef, dataToSave).catch(e => { console.error(e); });
-                    } else {
-                        localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
-                        localStorage.setItem('expenses', JSON.stringify(expenses.value));
-                        localStorage.setItem('members', JSON.stringify(members.value));
-                        localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
-                    }
+                        try {
+                            await setDoc(tripDocRef, dataToSave, { merge: true });
+                            saveError.value = null; // Clear error on success
+                        } catch (e) {
+                            console.error("Cloud save error", e);
+                            saveError.value = e.message;
+                            
+                            // CRITICAL: If write fails (likely permission), fallback to offline IMMEDIATELY
+                            // to prevent local data from being reverted by snapshot listener
+                            if (e.code === 'permission-denied') {
+                                isCloudMode.value = false;
+                                alert("⚠️ 權限不足，已自動切換為「單機模式」。\n\n您的資料現在只會存在這台裝置上，不會遺失。\n\n若要開啟雲端同步，請到 Firebase Console 修改 Rules 為 `allow read, write: if true;`");
+                            }
+                        }
+                    } 
+                    
+                    // Always save to local storage as backup
+                    localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
+                    localStorage.setItem('expenses', JSON.stringify(expenses.value));
+                    localStorage.setItem('members', JSON.stringify(members.value));
+                    localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
                 };
 
                 watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
@@ -613,12 +651,13 @@
                 };
                 
                 const saveExpense = () => { 
+                    // Fixed: Allow 0 but not empty string
                     if (formExpense.value.amount === '') return alert("請輸入金額");
                     try {
                         const newExpense = {
                             id: Date.now(), 
                             title: formExpense.value.title || '一般消費',
-                            amount: Number(formExpense.value.amount) || 0,
+                            amount: Number(formExpense.value.amount),
                             payer: formExpense.value.payer || members.value[0]
                         };
                         expenses.value.unshift(newExpense); 
@@ -662,7 +701,7 @@
                 const updateFromHKD = () => calcTHB.value = calcHKD.value ? (calcHKD.value*currentRate.value).toFixed(0) : '';
 
                 return {
-                    currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId,
+                    currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId, authUid,
                     initOffline, createCloudTrip, joinCloudTrip, startApp, connectToCloud,
                     tripDays, activeDayIndex, currentDayItems, addDay,
                     showItineraryModal, formItinerary, isEditing, openItineraryModal, editItem, saveItinerary, deleteItinerary,
@@ -672,7 +711,7 @@
                     showSettings, members, newMemberName, addMember, removeMember, resetAllData,
                     showSettlementModal, settlements, getPaidAmount, showThaiAddrModal, thaiAddrContent, showThaiAddress, openMap,
                     calcTHB, calcHKD, currentRate, updateFromTHB, updateFromHKD,
-                    showConfigModal, configInput, hasCustomConfig, saveCustomConfig
+                    showConfigModal, configInput, hasCustomConfig, saveCustomConfig, saveError
                 };
             }
         }).mount('#app');
