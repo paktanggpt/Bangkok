@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>曼谷 6 天 5 夜親子尊享之旅</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,10 +14,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
+        /* 核心修復：使用 dvh 單位適配移動端瀏覽器高度 */
+        body, #app {
+            height: 100vh; /* Fallback */
+            height: 100dvh; /* Dynamic Viewport Height for Mobile */
+        }
+
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background-color: #F3F4F6;
             -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
         }
         /* 隱藏 Scrollbar 但保持功能 */
         .no-scrollbar::-webkit-scrollbar {
@@ -42,32 +49,31 @@
                     colors: {
                         primary: '#FF8C00', // 泰國橘
                         secondary: '#4B0082', // 皇室紫
-                        bg: '#F3F4F6'
+                        bg: '#F3F4F6',
+                        michelin: '#BD2333' // 米芝蓮紅
                     }
                 }
             }
         }
     </script>
 </head>
-<body class="h-screen overflow-hidden text-gray-800">
+<body class="overflow-hidden text-gray-800">
 
-    <div id="app" class="h-full flex flex-col relative max-w-md mx-auto bg-white shadow-2xl h-screen">
+    <div id="app" class="flex flex-col relative max-w-md mx-auto bg-white shadow-2xl">
         
-        <!-- Header -->
-        <header class="bg-white px-5 pt-10 pb-4 shadow-sm z-10 flex justify-between items-center sticky top-0">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900 tracking-tight">
-                    <span class="text-primary">Sawadee</span> Bangkok 🇹🇭
-                </h1>
-                <p class="text-xs text-gray-500 font-medium mt-1">親子尊享之旅 (12/26 - 12/31)</p>
-            </div>
-            <button @click="showSettings = true" class="text-gray-400 hover:text-primary transition">
+        <!-- Hero Image (Custom Banner) -->
+        <!-- 修改說明：移除高度限制 (h-48)，改為 h-auto 讓圖片完整顯示，移除遮罩與文字覆蓋 -->
+        <div class="relative w-full shrink-0 bg-white">
+            <img src="./banner.jpg" alt="Bangkok Trip Banner" class="w-full h-auto object-cover block" onerror="this.src='https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?q=80&w=800&auto=format&fit=crop'">
+            
+            <!-- 設定按鈕 (改為深色圖標+淺色背景，確保在卡通圖上可見) -->
+            <button @click="showSettings = true" class="absolute top-4 right-4 text-gray-700 bg-white/90 hover:bg-white transition z-20 p-2 rounded-full shadow-md backdrop-blur-sm">
                 <i class="fa-solid fa-gear text-lg"></i>
             </button>
-        </header>
+        </div>
 
         <!-- Main Content Area -->
-        <main class="flex-1 overflow-y-auto no-scrollbar scrolling-touch bg-gray-50 p-4 pb-24 relative">
+        <main class="flex-1 overflow-y-auto no-scrollbar scrolling-touch bg-gray-50 p-4 pb-24 relative w-full">
             
             <!-- VIEW: ITINERARY (行程) -->
             <div v-if="currentTab === 'itinerary'" class="space-y-4">
@@ -126,13 +132,11 @@
                             </div>
                             <h3 class="font-bold text-gray-800 text-lg leading-tight mb-1">{{ item.title }}</h3>
                             
-                            <!-- Location -->
                             <div class="flex items-center text-gray-500 text-sm mb-2">
                                 <i class="fa-solid fa-map-pin mr-1.5 text-xs text-gray-400 w-4 text-center"></i>
                                 <span class="truncate">{{ item.location }}</span>
                             </div>
 
-                            <!-- Transport/Details Badge -->
                             <div class="flex flex-wrap gap-2 mt-2">
                                 <span v-if="item.transport" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
                                     <i class="fa-solid fa-van-shuttle mr-1"></i> {{ item.transport }}
@@ -142,7 +146,6 @@
                                 </span>
                             </div>
 
-                            <!-- Description -->
                             <p v-if="item.desc" class="text-sm text-gray-500 mt-3 border-t pt-2 border-gray-50 leading-relaxed">
                                 {{ item.desc }}
                             </p>
@@ -157,10 +160,86 @@
                 </div>
             </div>
 
+            <!-- VIEW: FOOD GUIDE (美食指南) -->
+            <div v-if="currentTab === 'food'" class="space-y-4">
+                
+                <!-- Food Category Selector -->
+                <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2">
+                    <button 
+                        v-for="cat in foodCategories" 
+                        :key="cat"
+                        @click="activeFoodCategory = cat"
+                        class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all border whitespace-nowrap"
+                        :class="activeFoodCategory === cat ? 'bg-michelin text-white border-michelin shadow-md' : 'bg-white text-gray-500 border-gray-200'"
+                    >
+                        {{ cat }}
+                    </button>
+                </div>
+
+                <!-- Restaurant List -->
+                <div class="space-y-4">
+                    <div v-for="spot in filteredFoodSpots" :key="spot.id || spot.name" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col relative">
+                        
+                        <!-- Delete Button for Custom Spots -->
+                        <button v-if="spot.isCustom" @click="deleteCustomFood(spot.id)" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 p-2 z-10">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+
+                        <!-- Header / Tag -->
+                        <div class="flex justify-between items-start p-4 pb-2">
+                            <div class="flex flex-col pr-8">
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span v-if="spot.level === '1 Star'" class="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-[10px] font-bold border border-yellow-200">
+                                        <i class="fa-solid fa-star"></i> 米芝蓮一星
+                                    </span>
+                                    <span v-else-if="spot.level === 'Bib'" class="bg-red-50 text-michelin px-2 py-0.5 rounded text-[10px] font-bold border border-red-100">
+                                        <i class="fa-solid fa-face-grin-tongue"></i> 必比登推介
+                                    </span>
+                                    <span v-else-if="spot.isCustom" class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold border border-blue-100">
+                                        <i class="fa-solid fa-user-pen"></i> 自訂收藏
+                                    </span>
+                                    <span v-else class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-bold">
+                                        在地推薦
+                                    </span>
+                                    <span class="text-xs text-gray-400 font-medium">{{ spot.price }}</span>
+                                </div>
+                                <h3 class="font-bold text-gray-900 text-lg">{{ spot.name }}</h3>
+                                <p class="text-xs text-gray-500">{{ spot.engName }}</p>
+                            </div>
+                            <button @click="openMap(spot.engName || spot.name)" class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 hover:bg-blue-100 shadow-sm shrink-0">
+                                <i class="fa-solid fa-location-dot"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="px-4 pb-4">
+                            <div class="flex gap-2 mb-3">
+                                <span class="text-xs bg-gray-50 px-2 py-1 rounded text-gray-500">
+                                    <i class="fa-solid fa-map-pin text-[10px] mr-1"></i> {{ spot.area }}
+                                </span>
+                                <span class="text-xs bg-gray-50 px-2 py-1 rounded text-gray-500">
+                                    <i class="fa-solid fa-utensils text-[10px] mr-1"></i> {{ spot.type }}
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-600 leading-relaxed border-t border-gray-50 pt-2" v-if="spot.mustEat">
+                                <span class="font-bold text-gray-800">必點：</span>{{ spot.mustEat }}
+                            </p>
+                            <p class="text-xs text-gray-400 mt-2" v-if="spot.note">
+                                <i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ spot.note }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Empty State for filtered -->
+                    <div v-if="filteredFoodSpots.length === 0" class="text-center py-10 text-gray-400">
+                        <p>這個區域暫無餐廳資料</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- VIEW: EXPENSE (分帳) -->
             <div v-if="currentTab === 'expense'" class="space-y-6">
-                
-                <!-- NEW: Currency Calculator Card -->
+                <!-- Currency Calculator -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="font-bold text-gray-800 flex items-center gap-2">
@@ -245,7 +324,7 @@
 
         </main>
 
-        <!-- Floating Action Button (Only for Itinerary) -->
+        <!-- Floating Action Button -->
         <button 
             v-if="currentTab === 'itinerary'"
             @click="openItineraryModal()"
@@ -254,11 +333,23 @@
             <i class="fa-solid fa-plus"></i>
         </button>
 
-        <!-- Bottom Navigation -->
-        <nav class="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3 pb-safe z-30">
+        <button 
+            v-if="currentTab === 'food'"
+            @click="openFoodModal()"
+            class="absolute bottom-24 right-5 w-14 h-14 bg-michelin text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-20"
+        >
+            <i class="fa-solid fa-plus"></i>
+        </button>
+
+        <!-- Bottom Navigation (Fixed) -->
+        <nav class="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3 pb-safe z-30 shrink-0 sticky bottom-0 w-full">
             <button @click="currentTab = 'itinerary'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400'">
                 <i class="fa-solid fa-map-location-dot text-xl"></i>
                 <span class="text-xs font-medium">行程</span>
+            </button>
+            <button @click="currentTab = 'food'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'food' ? 'text-michelin' : 'text-gray-400'">
+                <i class="fa-solid fa-utensils text-xl"></i>
+                <span class="text-xs font-medium">美食指南</span>
             </button>
             <button @click="currentTab = 'expense'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'expense' ? 'text-secondary' : 'text-gray-400'">
                 <i class="fa-solid fa-coins text-xl"></i>
@@ -299,6 +390,58 @@
                     <button @click="showItineraryModal = false" class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-600">取消</button>
                     <button v-if="isEditing" @click="deleteItinerary" class="flex-none px-4 py-3 rounded-xl bg-red-50 text-red-500 font-bold"><i class="fa-solid fa-trash"></i></button>
                     <button @click="saveItinerary" class="flex-1 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-orange-100">儲存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL: ADD FOOD -->
+        <div v-if="showFoodModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4">
+            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl transform transition-all animate-slide-up">
+                <h3 class="text-xl font-bold mb-4">新增美食餐廳</h3>
+                
+                <div class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">餐廳名稱</label>
+                        <input v-model="formFood.name" type="text" placeholder="例：After You Dessert" class="w-full bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-michelin">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">英文/泰文店名 (Google Maps用)</label>
+                        <input v-model="formFood.engName" type="text" placeholder="例：After You Siam Paragon" class="w-full bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-michelin">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">地區</label>
+                            <select v-model="formFood.category" class="w-full bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-michelin appearance-none">
+                                <option v-for="cat in foodCategories.filter(c => c !== '全區')" :key="cat" :value="cat">{{ cat }}</option>
+                                <option value="Other">其他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 mb-1">價位</label>
+                            <select v-model="formFood.price" class="w-full bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-michelin appearance-none">
+                                <option value="฿">฿ (便宜)</option>
+                                <option value="฿฿">฿฿ (中價)</option>
+                                <option value="฿฿฿">฿฿฿ (高級)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">料理類型</label>
+                        <input v-model="formFood.type" type="text" placeholder="例：甜點、咖啡廳" class="w-full bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-michelin">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">必吃菜色</label>
+                        <input v-model="formFood.mustEat" type="text" placeholder="例：芒果糯米刨冰" class="w-full bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-michelin">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">備註</label>
+                        <textarea v-model="formFood.note" rows="2" class="w-full bg-gray-100 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-michelin text-sm"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button @click="showFoodModal = false" class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-600">取消</button>
+                    <button @click="saveFood" class="flex-1 py-3 rounded-xl bg-michelin text-white font-bold shadow-lg shadow-red-200">加入清單</button>
                 </div>
             </div>
         </div>
@@ -485,13 +628,147 @@
             }
         ];
 
+        // Michelin Guide Data (Static)
+        const defaultMichelinData = [
+            // Old Town / Chinatown
+            {
+                name: "Jay Fai (痣姐)",
+                engName: "Raan Jay Fai",
+                area: "舊城區 (Old Town)",
+                category: "Old Town",
+                level: "1 Star",
+                type: "街頭熱炒",
+                mustEat: "黃金蟹肉蛋捲 (Crab Omelette), 醉漢麵",
+                price: "฿฿฿฿",
+                note: "價格昂貴，需排隊數小時或預約。唯一米芝蓮星級路邊攤。"
+            },
+            {
+                name: "Thipsamai (鬼門泰式炒麵)",
+                engName: "Thipsamai Pad Thai Pratoopee",
+                area: "舊城區 (Old Town)",
+                category: "Old Town",
+                level: "Bib",
+                type: "炒河粉",
+                mustEat: "蛋包泰式炒河 (Superb Pad Thai)",
+                price: "฿฿",
+                note: "就在 Jay Fai 旁邊，排隊人潮多但流動快。橘子汁必點！"
+            },
+            {
+                name: "Nai Mong Hoi Thod (內蒙蠔煎)",
+                engName: "Nai Mong Hoi Thod",
+                area: "唐人街 (Chinatown)",
+                category: "Old Town",
+                level: "Bib",
+                type: "蚵仔煎",
+                mustEat: "脆皮蚵仔煎 (Crispy Oyster Omelette)",
+                price: "฿฿",
+                note: "位於唐人街邊緣，口感極度酥脆。"
+            },
+            {
+                name: "Lim Lao Ngow (林老五魚丸)",
+                engName: "Lim Lao Ngow Fishball Noodle",
+                area: "唐人街 (Chinatown)",
+                category: "Old Town",
+                level: "Bib",
+                type: "魚丸麵",
+                mustEat: "乾拌魚丸麵",
+                price: "฿",
+                note: "百年老店，魚丸Q彈無粉感。晚上才開。"
+            },
+            
+            // Sukhumvit
+            {
+                name: "Rung Rueang (榮泰米粉湯)",
+                engName: "Rung Rueang Pork Noodle",
+                area: "Sukhumvit (Phrom Phong)",
+                category: "Sukhumvit",
+                level: "Bib",
+                type: "豬肉麵",
+                mustEat: "酸辣豬肉米粉湯 (Tom Yum Pork Noodles)",
+                price: "฿",
+                note: "位於 Soi 26，有兩間店面相鄰，都是親戚開的，味道差不多。"
+            },
+            {
+                name: "Here Hai (海海)",
+                engName: "Here Hai Restaurant",
+                area: "Sukhumvit (Ekkamai)",
+                category: "Sukhumvit",
+                level: "Bib",
+                type: "海鮮熱炒",
+                mustEat: "蟹肉炒飯 (Insane Crab Fried Rice)",
+                price: "฿฿฿",
+                note: "蟹肉份量驚人，建議訂位。"
+            },
+            {
+                name: "Wattana Panich (郭炎松)",
+                engName: "Wattana Panich",
+                area: "Sukhumvit (Ekkamai)",
+                category: "Sukhumvit",
+                level: "Bib",
+                type: "牛肉麵",
+                mustEat: "燉牛肉粿條",
+                price: "฿฿",
+                note: "門口那鍋煮了幾十年的陳年老湯是招牌。"
+            },
+
+            // Siam / Pratunam
+            {
+                name: "Go-Ang (紅大哥水門雞飯)",
+                engName: "Go-Ang Kaomunkai Pratunam",
+                area: "Pratunam (水門)",
+                category: "Siam",
+                level: "Bib",
+                type: "海南雞飯",
+                mustEat: "雞油飯, 燉雞湯",
+                price: "฿",
+                note: "店員穿粉紅色制服。就在 Central World 附近。"
+            },
+            {
+                name: "Jeh O Chula (雅歐)",
+                engName: "Jeh O Chula",
+                area: "Siam (Chula)",
+                category: "Siam",
+                level: "Bib",
+                type: "宵夜熱炒",
+                mustEat: "冬蔭功媽媽麵鍋 (Tom Yum Mama)",
+                price: "฿฿",
+                note: "深夜排隊名店，媽媽麵晚上11點後才供應。"
+            },
+
+            // Silom / Sathorn
+            {
+                name: "Jok Prince (王子戲院豬肉粥)",
+                engName: "Jok Prince",
+                area: "Bang Rak (Silom)",
+                category: "Silom",
+                level: "Bib",
+                type: "廣式粥品",
+                mustEat: "豬肉蛋粥 (Pork Congee with Egg)",
+                price: "฿",
+                note: "帶有焦香味的獨特粥品，就在 Robinson Bangrak 對面。"
+            },
+            {
+                name: "Baan Somtum (Sathorn)",
+                engName: "Baan Somtum Sathorn",
+                area: "Sathorn",
+                category: "Silom",
+                level: "Bib",
+                type: "泰北菜",
+                mustEat: "青木瓜沙拉, 炸雞翅",
+                price: "฿฿",
+                note: "環境舒適，冷氣強，適合家庭聚餐。"
+            }
+        ];
+
         createApp({
             setup() {
                 // State
                 const currentTab = ref('itinerary');
                 const activeDayIndex = ref(0);
+                const activeFoodCategory = ref('全區');
                 const showItineraryModal = ref(false);
                 const showExpenseModal = ref(false);
+                const showFoodModal = ref(false);
                 const showSettlementModal = ref(false);
                 const showSettings = ref(false);
                 const showThaiAddrModal = ref(false);
@@ -502,107 +779,84 @@
                 // Calculator State
                 const calcTHB = ref('');
                 const calcHKD = ref('');
-                const currentRate = ref(4.4); // Default THB to HKD rate
+                const currentRate = ref(4.4);
 
-                // Data - Initial State or from LocalStorage
-                // Check if user has data, otherwise load default
-                const savedTrips = JSON.parse(localStorage.getItem('tripDays_v2')); // Versioning key to force update
+                // Data
+                const savedTrips = JSON.parse(localStorage.getItem('tripDays_v2'));
                 const tripDays = ref(savedTrips || defaultItinerary);
-
                 const expenses = ref(JSON.parse(localStorage.getItem('expenses')) || []);
                 const members = ref(JSON.parse(localStorage.getItem('members')) || ['我', '家人A', '家人B']);
                 const newMemberName = ref('');
+                
+                // Food Data Handling
+                const customFoodSpots = ref(JSON.parse(localStorage.getItem('customFoodSpots')) || []);
+                const foodSpots = computed(() => [...customFoodSpots.value, ...defaultMichelinData]);
+
+                // Food Categories
+                const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town', 'Silom'];
 
                 // Forms
                 const formItinerary = ref({ time: '', title: '', location: '', transport: '', desc: '', thaiAddr: '' });
                 const formExpense = ref({ title: '', amount: '', payer: '' });
+                const formFood = ref({ name: '', engName: '', category: 'Siam', level: 'Custom', type: '', mustEat: '', price: '฿', note: '' });
 
                 // Computed
                 const currentDayItems = computed(() => {
                     return tripDays.value[activeDayIndex.value].items.sort((a, b) => a.time.localeCompare(b.time));
                 });
 
+                const filteredFoodSpots = computed(() => {
+                    if (activeFoodCategory.value === '全區') {
+                        return foodSpots.value;
+                    }
+                    return foodSpots.value.filter(spot => spot.category === activeFoodCategory.value || (activeFoodCategory.value === 'Siam' && spot.category === 'Siam') /* Fallback logic simplified */);
+                });
+
                 const totalExpense = computed(() => {
                     return expenses.value.reduce((sum, item) => sum + item.amount, 0);
                 });
 
-                // Algorithm to calculate settlements
                 const settlements = computed(() => {
                     if (members.value.length === 0) return [];
                     const balances = {};
                     members.value.forEach(m => balances[m] = 0);
-
                     const splitAmount = totalExpense.value / members.value.length;
-
-                    // Calculate net balance for each person
                     expenses.value.forEach(exp => {
-                        if (balances[exp.payer] !== undefined) {
-                            balances[exp.payer] += exp.amount;
-                        }
+                        if (balances[exp.payer] !== undefined) balances[exp.payer] += exp.amount;
                     });
-
-                    // Subtract average from what they paid to get net position
-                    let debtors = [];
-                    let creditors = [];
-
+                    let debtors = [], creditors = [];
                     for (const m in balances) {
                         const net = balances[m] - splitAmount;
                         if (net < -0.01) debtors.push({ name: m, amount: Math.abs(net) });
                         else if (net > 0.01) creditors.push({ name: m, amount: net });
                     }
-
                     const result = [];
-                    let i = 0; // debtor index
-                    let j = 0; // creditor index
-
+                    let i = 0, j = 0;
                     while (i < debtors.length && j < creditors.length) {
                         const debtor = debtors[i];
                         const creditor = creditors[j];
-                        
                         const amount = Math.min(debtor.amount, creditor.amount);
-                        
-                        if (amount > 0) {
-                            result.push({ from: debtor.name, to: creditor.name, amount: amount });
-                        }
-
+                        if (amount > 0) result.push({ from: debtor.name, to: creditor.name, amount: amount });
                         debtor.amount -= amount;
                         creditor.amount -= amount;
-
                         if (debtor.amount < 0.01) i++;
                         if (creditor.amount < 0.01) j++;
                     }
-
                     return result;
                 });
 
-                // Calculator Methods
+                // Methods
                 const updateFromTHB = () => {
-                    if (calcTHB.value === '' || calcTHB.value === null) {
-                        calcHKD.value = '';
-                        return;
-                    }
-                    // THB / Rate = HKD
+                    if (!calcTHB.value) { calcHKD.value = ''; return; }
                     calcHKD.value = (calcTHB.value / currentRate.value).toFixed(2);
                 };
-
                 const updateFromHKD = () => {
-                    if (calcHKD.value === '' || calcHKD.value === null) {
-                        calcTHB.value = '';
-                        return;
-                    }
-                    // HKD * Rate = THB
+                    if (!calcHKD.value) { calcTHB.value = ''; return; }
                     calcTHB.value = (calcHKD.value * currentRate.value).toFixed(0);
                 };
 
-                // Methods
                 const addDay = () => {
-                    const nextDayNum = tripDays.value.length + 1;
-                    tripDays.value.push({ 
-                        id: Date.now(), 
-                        date: `Day ${nextDayNum}`,
-                        title: '新的一天',
-                        items: [] 
-                    });
+                    tripDays.value.push({ id: Date.now(), date: `Day ${tripDays.value.length + 1}`, title: '新的一天', items: [] });
                     activeDayIndex.value = tripDays.value.length - 1;
                 };
 
@@ -626,16 +880,12 @@
 
                 const saveItinerary = () => {
                     if (!formItinerary.value.title) return;
-                    
                     if (isEditing.value) {
                         const day = tripDays.value[activeDayIndex.value];
                         const idx = day.items.findIndex(i => i.id === editingId.value);
                         if (idx !== -1) day.items[idx] = { ...formItinerary.value, id: editingId.value };
                     } else {
-                        tripDays.value[activeDayIndex.value].items.push({
-                            id: Date.now(),
-                            ...formItinerary.value
-                        });
+                        tripDays.value[activeDayIndex.value].items.push({ id: Date.now(), ...formItinerary.value });
                     }
                     showItineraryModal.value = false;
                     saveData();
@@ -656,7 +906,6 @@
                     window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
                 };
 
-                // Expense Methods
                 const openExpenseModal = () => {
                     formExpense.value = { title: '', amount: '', payer: members.value[0] || '' };
                     showExpenseModal.value = true;
@@ -664,10 +913,7 @@
 
                 const saveExpense = () => {
                     if (!formExpense.value.title || !formExpense.value.amount || !formExpense.value.payer) return;
-                    expenses.value.unshift({
-                        id: Date.now(),
-                        ...formExpense.value
-                    });
+                    expenses.value.unshift({ id: Date.now(), ...formExpense.value });
                     showExpenseModal.value = false;
                     saveData();
                 };
@@ -679,13 +925,35 @@
                     }
                 };
 
-                const getPaidAmount = (person) => {
-                    return expenses.value
-                        .filter(e => e.payer === person)
-                        .reduce((sum, e) => sum + e.amount, 0);
+                // Food Methods
+                const openFoodModal = () => {
+                    formFood.value = { name: '', engName: '', category: 'Siam', level: 'Custom', type: '', mustEat: '', price: '฿', note: '' };
+                    showFoodModal.value = true;
                 };
 
-                // Settings Methods
+                const saveFood = () => {
+                    if (!formFood.value.name) return;
+                    customFoodSpots.value.unshift({ 
+                        id: Date.now(), 
+                        isCustom: true,
+                        area: formFood.value.category, // Map category to area for display
+                        ...formFood.value 
+                    });
+                    showFoodModal.value = false;
+                    saveData();
+                };
+
+                const deleteCustomFood = (id) => {
+                    if (confirm('確定要刪除這個收藏嗎？')) {
+                        customFoodSpots.value = customFoodSpots.value.filter(f => f.id !== id);
+                        saveData();
+                    }
+                };
+
+                const getPaidAmount = (person) => {
+                    return expenses.value.filter(e => e.payer === person).reduce((sum, e) => sum + e.amount, 0);
+                };
+
                 const addMember = () => {
                     if (newMemberName.value && !members.value.includes(newMemberName.value)) {
                         members.value.push(newMemberName.value);
@@ -700,69 +968,29 @@
                 };
 
                 const resetAllData = () => {
-                    if (confirm('確定要重置所有資料為預設行程嗎？您的記帳紀錄也會被清空。')) {
-                        localStorage.removeItem('tripDays_v2');
-                        localStorage.removeItem('expenses');
-                        localStorage.removeItem('members');
+                    if (confirm('確定要重置所有資料為預設行程嗎？您的記帳紀錄和自訂餐廳也會被清空。')) {
+                        localStorage.clear();
                         location.reload();
                     }
                 };
 
-                // Persistence
                 const saveData = () => {
                     localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
                     localStorage.setItem('expenses', JSON.stringify(expenses.value));
                     localStorage.setItem('members', JSON.stringify(members.value));
+                    localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
                 };
 
-                watch([tripDays, expenses, members], saveData, { deep: true });
+                watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
 
                 return {
-                    currentTab,
-                    tripDays,
-                    activeDayIndex,
-                    currentDayItems,
-                    addDay,
-                    
-                    // Itinerary
-                    showItineraryModal,
-                    showThaiAddrModal,
-                    thaiAddrContent,
-                    formItinerary,
-                    isEditing,
-                    openItineraryModal,
-                    editItem,
-                    showThaiAddress,
-                    saveItinerary,
-                    deleteItinerary,
-                    openMap,
-
-                    // Expenses
-                    expenses,
-                    totalExpense,
-                    showExpenseModal,
-                    showSettlementModal,
-                    formExpense,
-                    settlements,
-                    openExpenseModal,
-                    saveExpense,
-                    deleteExpense,
-                    getPaidAmount,
-
-                    // Calculator
-                    calcTHB,
-                    calcHKD,
-                    currentRate,
-                    updateFromTHB,
-                    updateFromHKD,
-
-                    // Settings
-                    showSettings,
-                    members,
-                    newMemberName,
-                    addMember,
-                    removeMember,
-                    resetAllData
+                    currentTab, tripDays, activeDayIndex, currentDayItems, addDay,
+                    showItineraryModal, showThaiAddrModal, thaiAddrContent, formItinerary, isEditing, openItineraryModal, editItem, showThaiAddress, saveItinerary, deleteItinerary, openMap,
+                    expenses, totalExpense, showExpenseModal, showSettlementModal, formExpense, settlements, openExpenseModal, saveExpense, deleteExpense, getPaidAmount,
+                    calcTHB, calcHKD, currentRate, updateFromTHB, updateFromHKD,
+                    showSettings, members, newMemberName, addMember, removeMember, resetAllData,
+                    // Food Guide
+                    foodCategories, activeFoodCategory, filteredFoodSpots, showFoodModal, formFood, openFoodModal, saveFood, deleteCustomFood
                 };
             }
         }).mount('#app');
