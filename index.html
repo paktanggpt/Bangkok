@@ -307,7 +307,6 @@
         };
         initAuth();
 
-        // Data Definitions (Omitted for brevity, assumed same as before)
         const defaultItinerary = [
             { id: 1, date: '12/26 (五)', title: '啟程曼谷', items: [
                 { id: 101, time: '12:05', title: '抵達 BKK 機場', location: 'Suvarnabhumi Airport', desc: '領完行李後，前往預定好的專車接機點集合。', transport: '包車/接送' },
@@ -359,6 +358,7 @@
 
         createApp({
             setup() {
+                // System State
                 const currentTab = ref('itinerary');
                 const hasInitialized = ref(false);
                 const isLoading = ref(false);
@@ -366,26 +366,32 @@
                 const tripId = ref('');
                 const inputTripId = ref('');
                 
+                // --- FIREBASE VARIABLES ---
                 let tripDocRef = null;
                 let unsubscribeSnapshot = null;
                 const currentUser = ref(null);
 
+                // Data Refs
                 const tripDays = ref(defaultItinerary);
                 const expenses = ref([]);
                 const members = ref(['我', '家人A']);
                 const customFoodSpots = ref([]);
                 const activeDayIndex = ref(0);
 
+                // --- INITIALIZATION ---
                 onMounted(async () => {
                     onAuthStateChanged(auth, async (user) => {
                         currentUser.value = user;
                         if (user) {
                             const savedTripId = localStorage.getItem('tripId');
-                            if (savedTripId) await joinCloudTrip(savedTripId);
+                            if (savedTripId) {
+                                await joinCloudTrip(savedTripId);
+                            }
                         }
                     });
                 });
 
+                // --- OFFLINE MODE ---
                 const initOffline = () => {
                     isCloudMode.value = false;
                     localStorage.setItem('appMode', 'offline');
@@ -404,11 +410,14 @@
                     if (localFood) customFoodSpots.value = JSON.parse(localFood);
                 };
 
+                // 自訂名稱功能
                 const createCloudTrip = async () => {
                     let idToUse = inputTripId.value;
                     if (!idToUse) {
                         const userCustomName = prompt("請輸入旅程名稱 (例如: FWD_BKK_TRIP)。\n如果不輸入，系統將自動產生。", "");
-                        if (userCustomName) idToUse = userCustomName;
+                        if (userCustomName) {
+                            idToUse = userCustomName;
+                        }
                     }
                     const newId = (idToUse || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
                     await connectToTrip(newId, true);
@@ -422,9 +431,9 @@
 
                 const connectToTrip = async (id, isNew) => {
                     if (!currentUser.value) return;
+
                     isLoading.value = true;
                     tripId.value = id;
-                    
                     tripDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
 
                     try {
@@ -465,14 +474,29 @@
                     }
                 };
 
+                // --- 關鍵修改：Deep Sanitize Function ---
+                // 這是確保資料庫不會因為 undefined 而報錯的終極手段
+                const sanitize = (obj) => {
+                    return JSON.parse(JSON.stringify(obj, (key, value) => {
+                        return value === undefined ? null : value;
+                    }));
+                };
+
                 const saveData = () => {
                     if (isCloudMode.value && tripDocRef) {
-                        updateDoc(tripDocRef, {
+                        // 使用 sanitize 函數清洗所有資料
+                        const dataToSave = sanitize({
                             tripDays: tripDays.value,
                             expenses: expenses.value,
                             members: members.value,
                             customFoodSpots: customFoodSpots.value
-                        }).catch(e => console.error("Cloud save error", e));
+                        });
+                        
+                        updateDoc(tripDocRef, dataToSave).catch(e => {
+                            console.error("Cloud save error", e);
+                            // 這裡可以選擇是否要 alert 用戶，目前保持安靜失敗以免打擾，但會在 console 顯示
+                            // alert("存檔失敗: " + e.message); 
+                        });
                     } else {
                         localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
                         localStorage.setItem('expenses', JSON.stringify(expenses.value));
@@ -483,6 +507,7 @@
 
                 watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
 
+                // --- UI & Modals Logic ---
                 const activeFoodCategory = ref('全區');
                 const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town', 'Silom'];
                 const foodSpots = computed(() => [...customFoodSpots.value, ...defaultMichelin]);
@@ -505,32 +530,26 @@
                 const currentDayItems = computed(() => tripDays.value[activeDayIndex.value]?.items || []);
                 const totalExpense = computed(() => expenses.value.reduce((sum, i) => sum + i.amount, 0));
                 
+                // Actions
                 const addDay = () => { tripDays.value.push({id: Date.now(), date: `Day ${tripDays.value.length+1}`, items:[]}); activeDayIndex.value = tripDays.value.length-1; };
-                const openItineraryModal = () => { isEditing.value = false; formItinerary.value = {time:'10:00', title:'', location:''}; showItineraryModal.value = true; };
                 
-                // 修正：保存行程時防止 undefined
+                const openItineraryModal = () => { 
+                    isEditing.value = false; 
+                    formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; // 明確初始化
+                    showItineraryModal.value = true; 
+                };
+                
                 const saveItinerary = () => {
                     if(!formItinerary.value.title) return;
-                    const cleanItem = {
-                         time: formItinerary.value.time || '10:00',
-                         title: formItinerary.value.title || '未命名活動',
-                         location: formItinerary.value.location || '',
-                         transport: formItinerary.value.transport || '',
-                         desc: formItinerary.value.desc || '',
-                         tags: formItinerary.value.tags || [],
-                         thaiAddr: formItinerary.value.thaiAddr || ''
-                    };
-
                     if(isEditing.value) {
                         const day = tripDays.value[activeDayIndex.value];
                         const idx = day.items.findIndex(i => i.id === editingId.value);
-                        if(idx!==-1) day.items[idx] = {...cleanItem, id: editingId.value};
+                        if(idx!==-1) day.items[idx] = {...formItinerary.value, id: editingId.value};
                     } else {
-                        tripDays.value[activeDayIndex.value].items.push({id: Date.now(), ...cleanItem});
+                        tripDays.value[activeDayIndex.value].items.push({id: Date.now(), ...formItinerary.value});
                     }
                     showItineraryModal.value = false;
                 };
-
                 const editItem = (item) => { isEditing.value = true; editingId.value = item.id; formItinerary.value = {...item}; showItineraryModal.value = true; };
                 const deleteItinerary = () => { 
                     const day = tripDays.value[activeDayIndex.value]; 
@@ -538,36 +557,50 @@
                     showItineraryModal.value = false; 
                 };
                 
-                const openFoodModal = () => { formFood.value = {category: 'Siam', price:'฿'}; showFoodModal.value = true; };
+                const openFoodModal = () => { 
+                    formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; // 明確初始化
+                    showFoodModal.value = true; 
+                };
                 
-                // 修正：保存美食時防止 undefined
                 const saveFood = () => { 
-                    const cleanFood = {
-                        isCustom: true,
-                        name: formFood.value.name || '未命名美食',
-                        engName: formFood.value.engName || '',
-                        category: formFood.value.category || 'Siam',
-                        mustEat: formFood.value.mustEat || '',
-                        price: formFood.value.price || '฿'
-                    };
-                    customFoodSpots.value.unshift({id: Date.now(), ...cleanFood}); 
-                    showFoodModal.value = false; 
+                    try {
+                         const newFood = {
+                             id: Date.now(), 
+                             isCustom:true, 
+                             name: formFood.value.name || '未命名餐廳', 
+                             engName: formFood.value.engName || '',
+                             category: formFood.value.category || 'Siam',
+                             mustEat: formFood.value.mustEat || '',
+                             price: formFood.value.price || '฿'
+                         };
+                         customFoodSpots.value.unshift(newFood); 
+                         showFoodModal.value = false; 
+                    } catch(e) {
+                        alert("新增失敗: " + e.message);
+                    }
                 };
                 
                 const deleteCustomFood = (id) => { if(confirm('刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f=>f.id!==id); };
                 
-                const openExpenseModal = () => { formExpense.value = {payer: members.value[0], amount: ''}; showExpenseModal.value = true; };
+                const openExpenseModal = () => { 
+                    formExpense.value = {title: '', amount: '', payer: members.value[0]}; // 明確初始化
+                    showExpenseModal.value = true; 
+                };
                 
-                // 修正：保存消費時防止 undefined，這是導致你問題的主因
                 const saveExpense = () => { 
                     if (!formExpense.value.amount) return alert("請輸入金額");
-                    const cleanExpense = {
-                        title: formExpense.value.title || '未命名項目', // 確保有值
-                        amount: Number(formExpense.value.amount) || 0, // 確保是數字且有值
-                        payer: formExpense.value.payer || members.value[0] // 確保有值
-                    };
-                    expenses.value.unshift({id: Date.now(), ...cleanExpense}); 
-                    showExpenseModal.value = false; 
+                    try {
+                        const newExpense = {
+                            id: Date.now(), 
+                            title: formExpense.value.title || '一般消費',
+                            amount: Number(formExpense.value.amount),
+                            payer: formExpense.value.payer || members.value[0]
+                        };
+                        expenses.value.unshift(newExpense); 
+                        showExpenseModal.value = false; 
+                    } catch (e) {
+                        alert("新增失敗: " + e.message);
+                    }
                 };
                 
                 const deleteExpense = (id) => { if(confirm('刪除?')) expenses.value = expenses.value.filter(e=>e.id!==id); };
