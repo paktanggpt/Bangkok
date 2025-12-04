@@ -13,7 +13,7 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase SDKs (使用模組化導入) -->
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
         import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -24,43 +24,19 @@
     </script>
 
     <style>
-        body, #app {
-            height: 100vh;
-            height: 100dvh;
-        }
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #F3F4F6;
-            -webkit-tap-highlight-color: transparent;
-            overscroll-behavior-y: none;
-        }
+        body, #app { height: 100vh; height: 100dvh; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #F3F4F6; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .scrolling-touch { -webkit-overflow-scrolling: touch; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        
-        /* Loading Spinner */
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #FF8C00;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-        }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #FF8C00; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
     <script>
         tailwind.config = {
             theme: {
-                extend: {
-                    colors: {
-                        primary: '#FF8C00',
-                        secondary: '#4B0082',
-                        bg: '#F3F4F6',
-                        michelin: '#BD2333'
-                    }
-                }
+                extend: { colors: { primary: '#FF8C00', secondary: '#4B0082', bg: '#F3F4F6', michelin: '#BD2333' } }
             }
         }
     </script>
@@ -74,7 +50,7 @@
             <div>
                 <h1 class="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
                     <span class="text-primary">Sawadee</span> Bangkok 🇹🇭
-                    <span v-if="isCloudMode" class="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full animate-pulse">雲端同步中</span>
+                    <span v-if="isCloudMode" class="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full animate-pulse">連線中</span>
                 </h1>
                 <p class="text-xs text-gray-500 font-medium mt-1">
                     {{ tripId ? '旅程代碼: ' + tripId : '親子尊享之旅 (12/26 - 12/31)' }}
@@ -82,8 +58,7 @@
             </div>
             <button @click="showSettings = true" class="text-gray-400 hover:text-primary transition relative">
                 <i class="fa-solid fa-gear text-lg"></i>
-                <span v-if="!isCloudMode" class="absolute -top-1 -right-1 w-2 h-2 bg-gray-300 rounded-full"></span>
-                <span v-else class="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+                <span v-if="isCloudMode" class="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></span>
             </button>
         </header>
 
@@ -97,41 +72,33 @@
                 </div>
                 <h2 class="text-xl font-bold">歡迎使用曼谷旅遊助手</h2>
                 
-                <div class="w-full space-y-3">
-                    <button @click="initOffline" class="w-full py-4 bg-white border border-gray-200 rounded-xl shadow-sm font-bold text-gray-600 hover:bg-gray-50">
-                        <i class="fa-solid fa-mobile-screen mr-2"></i> 單機使用 (不需網路)
-                    </button>
-                    
-                    <div class="relative py-2">
-                        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-300"></div></div>
-                        <div class="relative flex justify-center text-xs bg-gray-50 px-2 text-gray-500">或是</div>
+                <div class="w-full space-y-3 px-4">
+                    <div v-if="isLoading" class="flex flex-col items-center justify-center text-gray-400 py-4">
+                        <div class="loader mb-3"></div>
+                        <p class="text-xs">正在連線至雲端...</p>
                     </div>
-
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-blue-100">
-                        <h3 class="font-bold text-blue-600 mb-3"><i class="fa-solid fa-cloud mr-1"></i> 雲端同步模式</h3>
-                        <p class="text-xs text-gray-400 mb-3">多人即時編輯，需設定 Firebase</p>
+                    
+                    <div v-else class="bg-white p-6 rounded-2xl shadow-sm border border-blue-100 space-y-4">
+                        <h3 class="font-bold text-blue-600"><i class="fa-solid fa-cloud mr-1"></i> 開始旅程</h3>
                         
-                        <div v-if="!hasFirebaseConfig" class="space-y-2">
-                            <input v-model="inputTripId" type="text" placeholder="輸入旅程代碼 (如果有)" class="w-full bg-gray-100 px-4 py-2 rounded-lg text-sm text-center uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500">
-                            <button @click="openFirebaseSetup" class="w-full py-3 bg-blue-600 text-white rounded-lg font-bold shadow-lg shadow-blue-200 text-sm">
-                                設定 / 加入旅程
-                            </button>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1 text-left ml-1">已有代碼？</label>
+                            <div class="flex gap-2">
+                                <input v-model="inputTripId" type="text" placeholder="例如: BANGKOK_1234" class="flex-1 bg-gray-100 px-4 py-3 rounded-xl text-lg font-bold text-center uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500">
+                                <button @click="joinCloudTrip()" class="px-6 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700">加入</button>
+                            </div>
                         </div>
-                        <div v-else class="space-y-2">
-                             <input v-model="inputTripId" type="text" placeholder="輸入旅程代碼 (例如: FAMILY2025)" class="w-full bg-gray-100 px-4 py-3 rounded-lg text-lg font-bold text-center uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500">
-                             <div class="grid grid-cols-2 gap-2">
-                                 <button @click="joinCloudTrip" class="py-3 bg-blue-600 text-white rounded-lg font-bold shadow-md">加入</button>
-                                 <button @click="createCloudTrip" class="py-3 bg-white border border-blue-200 text-blue-600 rounded-lg font-bold">建立新旅程</button>
-                             </div>
+                        
+                        <div class="relative py-2">
+                            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-100"></div></div>
+                            <div class="relative flex justify-center text-xs bg-white px-2 text-gray-400">或是</div>
                         </div>
+
+                        <button @click="createCloudTrip" class="w-full py-3 bg-orange-50 border border-orange-200 text-orange-600 rounded-xl font-bold hover:bg-orange-100">
+                            建立一個新旅程
+                        </button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Loading State -->
-            <div v-else-if="isLoading" class="flex flex-col items-center justify-center h-full text-gray-400">
-                <div class="loader mb-3"></div>
-                <p class="text-xs">正在同步資料...</p>
             </div>
 
             <!-- Main App Content (After Init) -->
@@ -145,28 +112,14 @@
 
                     <!-- Day Selector -->
                     <div class="flex space-x-3 overflow-x-auto no-scrollbar pb-2">
-                        <button 
-                            v-for="(day, index) in tripDays" 
-                            :key="index"
-                            @click="activeDayIndex = index"
-                            class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all transform active:scale-95 shadow-sm flex flex-col items-center min-w-[80px]"
-                            :class="activeDayIndex === index ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-500 border border-gray-100'"
-                        >
-                            <span>Day {{ index + 1 }}</span>
-                            <span class="text-[10px] font-normal opacity-80">{{ day.date }}</span>
-                        </button>
-                        <button @click="addDay" class="flex-shrink-0 px-3 py-2 rounded-full text-sm bg-gray-200 text-gray-600">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
+                        <button v-for="(day, index) in tripDays" :key="index" @click="activeDayIndex = index" class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all transform active:scale-95 shadow-sm flex flex-col items-center min-w-[80px]" :class="activeDayIndex === index ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-500 border border-gray-100'"><span>Day {{ index + 1 }}</span><span class="text-[10px] font-normal opacity-80">{{ day.date }}</span></button>
+                        <button @click="addDay" class="flex-shrink-0 px-3 py-2 rounded-full text-sm bg-gray-200 text-gray-600"><i class="fa-solid fa-plus"></i></button>
                     </div>
 
                     <!-- Day Summary -->
                     <div class="bg-orange-50 p-4 rounded-xl border border-orange-100 mb-2">
                         <h2 class="font-bold text-lg text-gray-800">{{ tripDays[activeDayIndex].title || '自由活動' }}</h2>
-                        <p class="text-xs text-gray-500 mt-1" v-if="tripDays[activeDayIndex].note">
-                            <i class="fa-solid fa-circle-info mr-1 text-primary"></i>
-                            {{ tripDays[activeDayIndex].note }}
-                        </p>
+                        <p class="text-xs text-gray-500 mt-1" v-if="tripDays[activeDayIndex].note"><i class="fa-solid fa-circle-info mr-1 text-primary"></i>{{ tripDays[activeDayIndex].note }}</p>
                     </div>
 
                     <!-- Timeline -->
@@ -280,7 +233,7 @@
         <div v-if="showExpenseModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">記一筆</h3><div class="space-y-4"><input v-model="formExpense.title" placeholder="項目" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model.number="formExpense.amount" type="number" placeholder="金額 (THB)" class="w-full bg-gray-100 rounded-xl px-4 py-3 font-mono text-lg"><div class="flex flex-wrap gap-2"><button v-for="m in members" :key="m" @click="formExpense.payer = m" class="px-4 py-2 rounded-lg text-sm font-bold border transition" :class="formExpense.payer === m ? 'bg-secondary text-white' : 'bg-white text-gray-500'">{{ m }}</button></div></div><div class="flex gap-3 mt-6"><button @click="showExpenseModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveExpense" class="flex-1 py-3 bg-secondary text-white rounded-xl font-bold shadow-lg">新增</button></div></div></div>
         <div v-if="showThaiAddrModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center"><div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fa-solid fa-taxi"></i></div><h3 class="text-lg font-bold text-gray-500 mb-2">請司機去這裡</h3><h2 class="text-2xl font-bold text-gray-900 mb-6 leading-relaxed select-all">{{ thaiAddrContent }}</h2><button @click="showThaiAddrModal = false" class="w-full py-3 rounded-xl bg-gray-800 text-white font-bold">關閉</button></div></div>
         
-        <!-- Settings Modal (With Firebase Setup) -->
+        <!-- Settings Modal -->
         <div v-if="showSettings" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4">
             <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl overflow-y-auto max-h-[85vh]">
                 <h3 class="text-xl font-bold mb-4">設定</h3>
@@ -297,7 +250,6 @@
                 </div>
 
                 <div class="pt-4 border-t border-gray-100">
-                    <button v-if="!isCloudMode" @click="openFirebaseSetup" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold mb-2 shadow-lg shadow-blue-200">啟用雲端同步</button>
                     <button @click="resetAllData" class="w-full py-3 rounded-xl border border-red-200 text-red-500 font-bold mb-2">重置資料 (Reset)</button>
                     <button @click="showSettings = false" class="w-full py-3 rounded-xl bg-gray-800 text-white font-bold">完成</button>
                 </div>
@@ -312,17 +264,67 @@
     <script>
         const { createApp, ref, computed, onMounted, watch } = Vue;
 
-        // 預設行程 (為了簡潔，這裡只列出部分，完整版會包含您之前的資料)
+        // ** 您的 Firebase 設定檔 (已嵌入) **
+        const firebaseConfig = {
+          apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
+          authDomain: "bangkok-trip-app.firebaseapp.com",
+          projectId: "bangkok-trip-app",
+          storageBucket: "bangkok-trip-app.firebasestorage.app",
+          messagingSenderId: "888598636200",
+          appId: "1:888598636200:web:c1a4ecf3b54c119418049d",
+          measurementId: "G-EWMSXN3G1H"
+        };
+
+        // 預設行程
         const defaultItinerary = [
-            { id: 1, date: '12/26 (五)', title: '啟程曼谷', items: [] },
-            { id: 2, date: '12/27 (六)', title: '泰服穿越', items: [] },
-            { id: 3, date: '12/28 (日)', title: '週末淘寶', items: [] },
-            { id: 4, date: '12/29 (一)', title: '野生動物園', items: [] },
-            { id: 5, date: '12/30 (二)', title: '伴手禮', items: [] },
-            { id: 6, date: '12/31 (三)', title: '回程', items: [] }
+            { id: 1, date: '12/26 (五)', title: '啟程曼谷', items: [
+                { id: 101, time: '12:05', title: '抵達 BKK 機場', location: 'Suvarnabhumi Airport', desc: '領完行李後，前往預定好的專車接機點集合。', transport: '包車/接送' },
+                { id: 102, time: '14:00', title: '飯店 Check-in & 休息', location: 'Centre Point Hotel Sukhumvit 10', thaiAddr: '39 ซอย สุขุมวิท 10 แขวงคลองเตย', desc: '讓長輩小孩先休息，整理行李。', tags: ['住宿'] },
+                { id: 103, time: '15:30', title: 'Chef Ple 芒果糯米飯', location: 'Chef Ple Thai Mango Sticky Rice', desc: '在 Times Square Building 旁。可外帶回飯店吃。', transport: '步行/TukTuk' },
+                { id: 104, time: '17:30', title: 'EmSphere 商場晚餐', location: 'EmSphere', thaiAddr: '628 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย', desc: '餐廳：Kub Kao Kub Pla (吃飯吃魚)。環境舒適，口味適合全家。', transport: 'Grab/包車', tags: ['晚餐'] }
+            ]},
+            { id: 2, date: '12/27 (六)', title: '泰服穿越', items: [
+                { id: 201, time: '09:30', title: '鄭王廟泰服體驗', location: 'Wat Arun', thaiAddr: '158 ถนนวังเดิม แขวงวัดอรุณ เขตบางกอกใหญ่', desc: 'Vision Thai Studio 換裝。長輩與幼童建議在平面庭園拍照即可，注意安全。', transport: '包車' },
+                { id: 202, time: '12:30', title: 'ICONSIAM 午餐', location: 'ICONSIAM', thaiAddr: '299 ถนนเจริญนคร แขวงคลองต้นไทร เขตคลองสาน', desc: '建議至高樓層餐廳（如 Nara Thai Cuisine）。餐後可逛 SookSiam 室內水上市場。', transport: '包車/Grab' },
+                { id: 203, time: '15:00', title: '侏羅紀展覽', location: 'ICONSIAM Jurassic World', desc: '在冷氣房內體驗沉浸式恐龍世界，小朋友的最愛。', tags: ['展覽'] },
+                { id: 204, time: '17:30', title: 'Asiatique 河濱夜市晚餐', location: 'Asiatique The Riverfront', thaiAddr: '2194 ถนนเจริญกรุง แขวงวัดพระยาไกร เขตบางคอแหลม', desc: '晚餐推薦：Ko Dang Talay (海鮮倉庫)。環境寬敞適合大家庭。', transport: '包車/Grab', tags: ['晚餐'] }
+            ]},
+            { id: 3, date: '12/28 (日)', title: '週末淘寶', items: [
+                { id: 301, time: '10:00', title: '洽圖洽市集 / Mixt 商場', location: 'Mixt Chatuchak', thaiAddr: '8 Kamphaeng Phet 3 Rd, Chatuchak', desc: '長輩幼童在 Mixt 商場吹冷氣休息。採購組去戶外市集尋寶。午餐在商場內解決。', transport: '包車/Grab' },
+                { id: 302, time: '15:30', title: '飯店泳池 / 足部按摩', location: 'Centre Point Hotel Sukhumvit 10', desc: '午後避暑。小朋友玩水，大人在附近找按摩店放鬆。', transport: '回飯店' },
+                { id: 303, time: '17:30', title: '釣蝦體驗晚餐', location: 'Bor Tok Kung Charoen Nakhon 16', thaiAddr: 'บ่อตกกุ้งเจริญนคร 16 (Soi Charoen Nakhon 16)', desc: '體驗在地娛樂！建議先點一些熱炒以免等太久餓肚子。', transport: '包車/Grab', tags: ['晚餐'] }
+            ]},
+            { id: 4, date: '12/29 (一)', title: '野生動物園', items: [
+                { id: 401, time: '08:30', title: 'Safari World 野生動物園', location: 'Safari World', thaiAddr: '99 ถนนปัญญาอินทรา แขวงสามวาตะวันตก เขตคลองสามวา', desc: '上午搭車遊野生動物區 (Safari Park)，下午步行海洋公園區 (Marine Park)。必去長頸鹿餵食亭。', transport: '包車', tags: ['全日遊'] },
+                { id: 402, time: '18:30', title: 'Central World 晚餐', location: 'Central World', thaiAddr: '999/9 ถนนพระรามที่ ๑ แขวงปทุมวัน', desc: '晚餐：Savoey Seafood (上味泰餐館)，2樓 Groove 區。推薦咖哩螃蟹。', transport: '包車回市區', tags: ['晚餐'] }
+            ]},
+            { id: 5, date: '12/30 (二)', title: '伴手禮', items: [
+                { id: 501, time: '11:00', title: 'Big C 採買伴手禮', location: 'Big C Supercenter Rajdamri', thaiAddr: '97/11 ถนนราชดำริ แขวงลุมพินี เขตปทุมวัน', desc: '就在 Central World 對面。買完可寄放或請司機載回。', transport: '包車/Grab' },
+                { id: 502, time: '13:00', title: '午餐：Thong Smith 船麵', location: 'Central World', desc: '位於 3 樓 Beacon 區。高級船麵，辣度可調整。', tags: ['午餐'] },
+                { id: 503, time: '14:30', title: 'Sea Life 水族館 / 下午茶', location: 'Siam Paragon', thaiAddr: '991 ถนนพระรามที่ 1 แขวงปทุมวัน', desc: '親子組：去 B1-B2 水族館。休閒組：在百貨喝下午茶。從 Central World 走 Skywalk 過來。', transport: '步行 Skywalk' },
+                { id: 504, time: '18:00', title: '喬德夜市晚餐', location: 'Jodd Fairs Rama 9', thaiAddr: 'ถนนพระราม 9 แขวงห้วยขวาง', desc: '晚餐吃火山排骨。長輩若怕熱可去旁邊 Central Rama 9 商場休息。', transport: 'Grab/包車', tags: ['晚餐'] }
+            ]},
+            { id: 6, date: '12/31 (三)', title: '回程', items: [
+                { id: 601, time: '09:30', title: '悠閒早餐 & 收拾', location: 'Centre Point Hotel Sukhumvit 10', desc: '享受最後的飯店時光。' },
+                { id: 602, time: '11:00', title: '前往機場 (BKK)', location: 'Suvarnabhumi Airport', desc: '搭乘專車送機。車程約 45-60 分鐘。', transport: '包車送機' },
+                { id: 603, time: '13:45', title: '航班起飛 (EK384)', location: 'Suvarnabhumi Airport', desc: '13:45 BKK -> 17:40 HKG', tags: ['飛機'] }
+            ]}
         ];
         
-        const defaultMichelin = []; // 為了縮短代碼，此處省略靜態資料，實作時會讀取
+        // Michelin Data
+        const defaultMichelin = [
+            { name: "Jay Fai (痣姐)", engName: "Raan Jay Fai", area: "舊城區 (Old Town)", category: "Old Town", level: "1 Star", type: "街頭熱炒", mustEat: "黃金蟹肉蛋捲 (Crab Omelette), 醉漢麵", price: "฿฿฿฿", note: "價格昂貴，需排隊數小時或預約。唯一米芝蓮星級路邊攤。" },
+            { name: "Thipsamai (鬼門泰式炒麵)", engName: "Thipsamai Pad Thai Pratoopee", area: "舊城區 (Old Town)", category: "Old Town", level: "Bib", type: "炒河粉", mustEat: "蛋包泰式炒河 (Superb Pad Thai)", price: "฿฿", note: "就在 Jay Fai 旁邊，排隊人潮多但流動快。橘子汁必點！" },
+            { name: "Nai Mong Hoi Thod (內蒙蠔煎)", engName: "Nai Mong Hoi Thod", area: "唐人街 (Chinatown)", category: "Old Town", level: "Bib", type: "蚵仔煎", mustEat: "脆皮蚵仔煎 (Crispy Oyster Omelette)", price: "฿฿", note: "位於唐人街邊緣，口感極度酥脆。" },
+            { name: "Lim Lao Ngow (林老五魚丸)", engName: "Lim Lao Ngow Fishball Noodle", area: "唐人街 (Chinatown)", category: "Old Town", level: "Bib", type: "魚丸麵", mustEat: "乾拌魚丸麵", price: "฿", note: "百年老店，魚丸Q彈無粉感。晚上才開。" },
+            { name: "Rung Rueang (榮泰米粉湯)", engName: "Rung Rueang Pork Noodle", area: "Sukhumvit (Phrom Phong)", category: "Sukhumvit", level: "Bib", type: "豬肉麵", mustEat: "酸辣豬肉米粉湯 (Tom Yum Pork Noodles)", price: "฿", note: "位於 Soi 26，有兩間店面相鄰，都是親戚開的，味道差不多。" },
+            { name: "Here Hai (海海)", engName: "Here Hai Restaurant", area: "Sukhumvit (Ekkamai)", category: "Sukhumvit", level: "Bib", type: "海鮮熱炒", mustEat: "蟹肉炒飯 (Insane Crab Fried Rice)", price: "฿฿฿", note: "蟹肉份量驚人，建議訂位。" },
+            { name: "Wattana Panich (郭炎松)", engName: "Wattana Panich", area: "Sukhumvit (Ekkamai)", category: "Sukhumvit", level: "Bib", type: "牛肉麵", mustEat: "燉牛肉粿條", price: "฿฿", note: "門口那鍋煮了幾十年的陳年老湯是招牌。" },
+            { name: "Go-Ang (紅大哥水門雞飯)", engName: "Go-Ang Kaomunkai Pratunam", area: "Pratunam (水門)", category: "Siam", level: "Bib", type: "海南雞飯", mustEat: "雞油飯, 燉雞湯", price: "฿", note: "店員穿粉紅色制服。就在 Central World 附近。" },
+            { name: "Jeh O Chula (雅歐)", engName: "Jeh O Chula", area: "Siam (Chula)", category: "Siam", level: "Bib", type: "宵夜熱炒", mustEat: "冬蔭功媽媽麵鍋 (Tom Yum Mama)", price: "฿฿", note: "深夜排隊名店，媽媽麵晚上11點後才供應。" },
+            { name: "Jok Prince (王子戲院豬肉粥)", engName: "Jok Prince", area: "Bang Rak (Silom)", category: "Silom", level: "Bib", type: "廣式粥品", mustEat: "豬肉蛋粥 (Pork Congee with Egg)", price: "฿", note: "帶有焦香味的獨特粥品，就在 Robinson Bangrak 對面。" },
+            { name: "Baan Somtum (Sathorn)", engName: "Baan Somtum Sathorn", area: "Sathorn", category: "Silom", level: "Bib", type: "泰北菜", mustEat: "青木瓜沙拉, 炸雞翅", price: "฿฿", note: "環境舒適，冷氣強，適合家庭聚餐。" }
+        ];
 
         createApp({
             setup() {
@@ -331,7 +333,7 @@
                 const hasInitialized = ref(false);
                 const isLoading = ref(false);
                 const isCloudMode = ref(false);
-                const hasFirebaseConfig = ref(false);
+                const hasFirebaseConfig = ref(true); // Hardcoded config = true
                 const tripId = ref('');
                 const inputTripId = ref('');
                 
@@ -350,26 +352,19 @@
 
                 // --- INITIALIZATION ---
                 onMounted(async () => {
-                    // Check local storage for previous mode
-                    const savedMode = localStorage.getItem('appMode');
-                    const savedTripId = localStorage.getItem('tripId');
-                    const savedConfig = localStorage.getItem('firebaseConfig');
-
-                    if (savedConfig) {
-                        try {
-                            await initFirebase(JSON.parse(savedConfig));
-                            hasFirebaseConfig.value = true;
-                        } catch (e) {
-                            console.error("Config failed", e);
+                    // Try to init Firebase immediately
+                    try {
+                        await initFirebase(firebaseConfig);
+                        const savedTripId = localStorage.getItem('tripId');
+                        if (savedTripId) {
+                            await joinCloudTrip(savedTripId);
+                        } else {
+                            // First time? Just show setup screen
                         }
-                    }
-
-                    if (savedMode === 'cloud' && savedTripId && hasFirebaseConfig.value) {
-                        joinCloudTrip(savedTripId);
-                    } else if (savedMode === 'offline') {
+                    } catch (e) {
+                        console.error("Firebase init error", e);
+                        // Fallback to offline if firebase fails
                         initOffline();
-                    } else {
-                        // Stay on setup screen
                     }
                 });
 
@@ -392,22 +387,6 @@
                     if (localFood) customFoodSpots.value = JSON.parse(localFood);
                 };
 
-                // --- CLOUD MODE ---
-                const openFirebaseSetup = () => {
-                    const configStr = prompt("請貼上 Firebase Config (JSON格式):\n如果您不知道這是什麼，請使用單機模式，或詢問製作此 App 的人。");
-                    if (configStr) {
-                        try {
-                            const config = JSON.parse(configStr);
-                            initFirebase(config);
-                            localStorage.setItem('firebaseConfig', JSON.stringify(config));
-                            hasFirebaseConfig.value = true;
-                            alert("Firebase 設定成功！");
-                        } catch (e) {
-                            alert("格式錯誤，請確保是有效的 JSON。");
-                        }
-                    }
-                };
-
                 const initFirebase = async (config) => {
                     const { initializeApp, getFirestore, getAuth, signInAnonymously } = window.firebaseModules;
                     const app = initializeApp(config);
@@ -428,17 +407,15 @@
                 };
 
                 const connectToTrip = async (id, isNew) => {
-                    if (!db) return alert("請先設定 Firebase");
+                    if (!db) return alert("Firebase 連線錯誤");
                     isLoading.value = true;
                     tripId.value = id;
                     
-                    const { doc, onSnapshot, setDoc, getDoc } = window.firebaseModules;
-                    // Use a specific path for shared trips
+                    const { doc, onSnapshot, setDoc } = window.firebaseModules;
                     tripDocRef = doc(db, 'artifacts', 'bangkok_app', 'public', 'data', 'trips', id);
 
                     try {
                         if (isNew) {
-                            // Create initial data
                             await setDoc(tripDocRef, {
                                 tripDays: defaultItinerary,
                                 expenses: [],
@@ -447,14 +424,15 @@
                             });
                         }
 
-                        // Listen for updates
+                        if (unsubscribeSnapshot) unsubscribeSnapshot();
+
                         unsubscribeSnapshot = onSnapshot(tripDocRef, (docSnap) => {
                             if (docSnap.exists()) {
                                 const data = docSnap.data();
-                                tripDays.value = data.tripDays || defaultItinerary;
-                                expenses.value = data.expenses || [];
-                                members.value = data.members || [];
-                                customFoodSpots.value = data.customFoodSpots || [];
+                                if (data.tripDays) tripDays.value = data.tripDays;
+                                if (data.expenses) expenses.value = data.expenses;
+                                if (data.members) members.value = data.members;
+                                if (data.customFoodSpots) customFoodSpots.value = data.customFoodSpots;
                             }
                             isLoading.value = false;
                             hasInitialized.value = true;
@@ -470,10 +448,8 @@
                     }
                 };
 
-                // --- GENERIC SAVE (Routes to Cloud or Local) ---
                 const saveData = () => {
                     if (isCloudMode.value && tripDocRef) {
-                        // Debounce could be added here for optimization
                         const { updateDoc } = window.firebaseModules;
                         updateDoc(tripDocRef, {
                             tripDays: tripDays.value,
@@ -482,7 +458,6 @@
                             customFoodSpots: customFoodSpots.value
                         }).catch(e => console.error("Cloud save error", e));
                     } else {
-                        // Save Local
                         localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
                         localStorage.setItem('expenses', JSON.stringify(expenses.value));
                         localStorage.setItem('members', JSON.stringify(members.value));
@@ -490,13 +465,11 @@
                     }
                 };
 
-                // Watch deep changes
                 watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
 
                 // --- UI & Modals Logic ---
-                // (以下邏輯與之前版本相同，為了節省篇幅，我保留核心互動)
                 const activeFoodCategory = ref('全區');
-                const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town'];
+                const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town', 'Silom'];
                 const foodSpots = computed(() => [...customFoodSpots.value, ...defaultMichelin]);
                 const filteredFoodSpots = computed(() => activeFoodCategory.value === '全區' ? foodSpots.value : foodSpots.value.filter(s => s.category === activeFoodCategory.value));
                 
@@ -517,7 +490,7 @@
                 const currentDayItems = computed(() => tripDays.value[activeDayIndex.value]?.items || []);
                 const totalExpense = computed(() => expenses.value.reduce((sum, i) => sum + i.amount, 0));
                 
-                // Actions (Simplified for brevity, same logic as before)
+                // Actions
                 const addDay = () => { tripDays.value.push({id: Date.now(), date: `Day ${tripDays.value.length+1}`, items:[]}); activeDayIndex.value = tripDays.value.length-1; };
                 const openItineraryModal = () => { isEditing.value = false; formItinerary.value = {time:'10:00', title:'', location:''}; showItineraryModal.value = true; };
                 const saveItinerary = () => {
@@ -547,7 +520,6 @@
                 const deleteExpense = (id) => { if(confirm('刪除?')) expenses.value = expenses.value.filter(e=>e.id!==id); };
                 
                 const settlements = computed(() => {
-                    // (Same settlement logic)
                     if (members.value.length === 0) return [];
                     const balances = {}; members.value.forEach(m => balances[m] = 0);
                     const split = totalExpense.value / members.value.length;
@@ -581,7 +553,7 @@
 
                 return {
                     currentTab, hasInitialized, isLoading, isCloudMode, hasFirebaseConfig, tripId, inputTripId,
-                    initOffline, openFirebaseSetup, createCloudTrip, joinCloudTrip,
+                    initOffline, createCloudTrip, joinCloudTrip,
                     tripDays, activeDayIndex, currentDayItems, addDay,
                     showItineraryModal, formItinerary, isEditing, openItineraryModal, editItem, saveItinerary, deleteItinerary,
                     expenses, totalExpense, showExpenseModal, formExpense, saveExpense, deleteExpense,
