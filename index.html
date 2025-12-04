@@ -12,9 +12,13 @@
     <link rel="apple-touch-icon" href="./icon.jpg">
     <link rel="icon" href="./icon.jpg">
 
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -25,10 +29,7 @@
         .scrolling-touch { -webkit-overflow-scrolling: touch; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #FF8C00; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
-        
-        /* 隱藏未編譯內容，防止亂碼閃爍 */
         [v-cloak] { display: none !important; }
-        
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
     <script>
@@ -109,8 +110,11 @@
             <div v-else>
                 <!-- ITINERARY TAB -->
                 <div v-if="currentTab === 'itinerary'" class="space-y-4">
-                    <div class="rounded-2xl overflow-hidden shadow-md mb-4 border border-gray-100">
-                        <img src="./banner.jpg" alt="Bangkok" class="w-full h-auto object-cover block" onerror="this.style.display='none'">
+                    <div class="rounded-2xl overflow-hidden shadow-md mb-4 border border-gray-100 relative h-40 bg-gray-200">
+                        <img src="https://images.unsplash.com/photo-1508009603885-50cf7c579365?q=80&w=1000&auto=format&fit=crop" alt="Bangkok" class="w-full h-full object-cover block">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-4">
+                            <span class="text-white font-bold text-lg">Bangkok City of Angels</span>
+                        </div>
                     </div>
 
                     <div class="flex space-x-3 overflow-x-auto no-scrollbar pb-2">
@@ -217,8 +221,8 @@
         </main>
 
         <!-- Floating Action Button -->
-        <button v-if="hasInitialized && currentTab === 'itinerary'" @click="openItineraryModal()" class="absolute bottom-24 right-5 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-orange-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-20"><i class="fa-solid fa-plus"></i></button>
-        <button v-if="hasInitialized && currentTab === 'food'" @click="openFoodModal()" class="absolute bottom-24 right-5 w-14 h-14 bg-michelin text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-20"><i class="fa-solid fa-plus"></i></button>
+        <button v-if="hasInitialized && currentTab === 'itinerary'" @click="openItineraryModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-orange-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-50"><i class="fa-solid fa-plus"></i></button>
+        <button v-if="hasInitialized && currentTab === 'food'" @click="openFoodModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-michelin text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-50"><i class="fa-solid fa-plus"></i></button>
 
         <!-- Bottom Navigation -->
         <nav v-if="hasInitialized" class="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3 pb-safe z-30 shrink-0 sticky bottom-0 w-full">
@@ -240,7 +244,8 @@
                 
                 <div v-if="isCloudMode" class="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
                     <p class="text-xs text-green-700 font-bold mb-1"><i class="fa-solid fa-cloud-check mr-1"></i> 已連線至雲端</p>
-                    <p class="text-[10px] text-gray-500">旅程代碼: <span class="font-mono bg-white px-1 border rounded select-all">{{ tripId }}</span> (分享給朋友加入)</p>
+                    <p class="text-[10px] text-gray-500 mb-1">旅程代碼: <span class="font-mono bg-white px-1 border rounded select-all">{{ tripId }}</span></p>
+                    <p class="text-[10px] text-gray-400">UID: {{ authUid || '未登入' }}</p>
                 </div>
 
                 <div class="mb-4">
@@ -262,13 +267,12 @@
     </div>
 
     <script type="module">
-        // 修正版本：使用穩定的 11.0.2 版本
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, collection } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        // 改用最穩定的 v10.13.1 版本
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, collection } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
         const { createApp, ref, computed, onMounted, watch } = Vue;
 
-        // Firebase Setup
         const defaultFirebaseConfig = {
           apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
           authDomain: "bangkok-trip-app.firebaseapp.com",
@@ -281,7 +285,7 @@
 
         let firebaseConfig;
         let appId;
-        let isInternalEnv = false; // 標記是否為內部 AI 環境
+        let isInternalEnv = false;
 
         if (typeof __firebase_config !== 'undefined') {
             firebaseConfig = JSON.parse(__firebase_config);
@@ -297,7 +301,6 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Auth
         const initAuth = async () => {
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                 try {
@@ -372,6 +375,7 @@
                 let tripDocRef = null;
                 let unsubscribeSnapshot = null;
                 const currentUser = ref(null);
+                const authUid = ref('');
 
                 const tripDays = ref(defaultItinerary);
                 const expenses = ref([]);
@@ -382,6 +386,7 @@
                 onMounted(async () => {
                     onAuthStateChanged(auth, async (user) => {
                         currentUser.value = user;
+                        authUid.value = user ? user.uid : '';
                         if (user) {
                             const savedTripId = localStorage.getItem('tripId');
                             if (savedTripId) await joinCloudTrip(savedTripId);
@@ -425,12 +430,11 @@
 
                 // --- 關鍵路徑修正 ---
                 const getTripDocRef = (id) => {
-                    // 如果是內部環境，使用 artifacts
                     if (isInternalEnv) {
                         return doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
                     } else {
-                        // 如果是外部 GitHub 環境，使用符合你截圖的 trips/data/trips/ID
-                        return doc(db, 'trips', 'data', 'trips', id);
+                        // 針對您的 GitHub Pages 環境，使用截圖中顯示的結構: trips/{ID}
+                        return doc(db, 'trips', id);
                     }
                 };
 
@@ -588,12 +592,12 @@
                 };
                 
                 const saveExpense = () => { 
-                    if (!formExpense.value.amount) return alert("請輸入金額");
+                    if (formExpense.value.amount === '') return alert("請輸入金額");
                     try {
                         const newExpense = {
                             id: Date.now(), 
                             title: formExpense.value.title || '一般消費',
-                            amount: Number(formExpense.value.amount),
+                            amount: Number(formExpense.value.amount) || 0,
                             payer: formExpense.value.payer || members.value[0]
                         };
                         expenses.value.unshift(newExpense); 
@@ -637,7 +641,7 @@
                 const updateFromHKD = () => calcTHB.value = calcHKD.value ? (calcHKD.value*currentRate.value).toFixed(0) : '';
 
                 return {
-                    currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId,
+                    currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId, authUid,
                     initOffline, createCloudTrip, joinCloudTrip,
                     tripDays, activeDayIndex, currentDayItems, addDay,
                     showItineraryModal, formItinerary, isEditing, openItineraryModal, editItem, saveItinerary, deleteItinerary,
