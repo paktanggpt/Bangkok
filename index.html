@@ -26,6 +26,7 @@
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #FF8C00; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         
+        /* 隱藏未編譯內容，防止亂碼閃爍 */
         [v-cloak] { display: none !important; }
         
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -261,9 +262,10 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // 修正版本：使用穩定的 11.0.2 版本
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, collection } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         const { createApp, ref, computed, onMounted, watch } = Vue;
 
         // Firebase Setup
@@ -279,12 +281,14 @@
 
         let firebaseConfig;
         let appId;
+        let isInternalEnv = false; // 標記是否為內部 AI 環境
 
         if (typeof __firebase_config !== 'undefined') {
             firebaseConfig = JSON.parse(__firebase_config);
             appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            isInternalEnv = true;
         } else {
-            console.log("Using default config for external deployment");
+            console.log("Running in External/GitHub Mode");
             firebaseConfig = defaultFirebaseConfig;
             appId = 'bangkok_app'; 
         }
@@ -358,7 +362,6 @@
 
         createApp({
             setup() {
-                // System State
                 const currentTab = ref('itinerary');
                 const hasInitialized = ref(false);
                 const isLoading = ref(false);
@@ -366,32 +369,26 @@
                 const tripId = ref('');
                 const inputTripId = ref('');
                 
-                // --- FIREBASE VARIABLES ---
                 let tripDocRef = null;
                 let unsubscribeSnapshot = null;
                 const currentUser = ref(null);
 
-                // Data Refs
                 const tripDays = ref(defaultItinerary);
                 const expenses = ref([]);
                 const members = ref(['我', '家人A']);
                 const customFoodSpots = ref([]);
                 const activeDayIndex = ref(0);
 
-                // --- INITIALIZATION ---
                 onMounted(async () => {
                     onAuthStateChanged(auth, async (user) => {
                         currentUser.value = user;
                         if (user) {
                             const savedTripId = localStorage.getItem('tripId');
-                            if (savedTripId) {
-                                await joinCloudTrip(savedTripId);
-                            }
+                            if (savedTripId) await joinCloudTrip(savedTripId);
                         }
                     });
                 });
 
-                // --- OFFLINE MODE ---
                 const initOffline = () => {
                     isCloudMode.value = false;
                     localStorage.setItem('appMode', 'offline');
@@ -410,14 +407,11 @@
                     if (localFood) customFoodSpots.value = JSON.parse(localFood);
                 };
 
-                // 自訂名稱功能
                 const createCloudTrip = async () => {
                     let idToUse = inputTripId.value;
                     if (!idToUse) {
                         const userCustomName = prompt("請輸入旅程名稱 (例如: FWD_BKK_TRIP)。\n如果不輸入，系統將自動產生。", "");
-                        if (userCustomName) {
-                            idToUse = userCustomName;
-                        }
+                        if (userCustomName) idToUse = userCustomName;
                     }
                     const newId = (idToUse || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
                     await connectToTrip(newId, true);
@@ -429,12 +423,23 @@
                     await connectToTrip(targetId, false);
                 };
 
+                // --- 關鍵路徑修正 ---
+                const getTripDocRef = (id) => {
+                    // 如果是內部環境，使用 artifacts
+                    if (isInternalEnv) {
+                        return doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
+                    } else {
+                        // 如果是外部 GitHub 環境，使用符合你截圖的 trips/data/trips/ID
+                        return doc(db, 'trips', 'data', 'trips', id);
+                    }
+                };
+
                 const connectToTrip = async (id, isNew) => {
                     if (!currentUser.value) return;
-
                     isLoading.value = true;
                     tripId.value = id;
-                    tripDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
+                    
+                    tripDocRef = getTripDocRef(id);
 
                     try {
                         if (isNew) {
@@ -474,8 +479,7 @@
                     }
                 };
 
-                // --- 關鍵修改：Deep Sanitize Function ---
-                // 這是確保資料庫不會因為 undefined 而報錯的終極手段
+                // --- 資料清洗函式 (Deep Sanitize) ---
                 const sanitize = (obj) => {
                     return JSON.parse(JSON.stringify(obj, (key, value) => {
                         return value === undefined ? null : value;
@@ -484,7 +488,6 @@
 
                 const saveData = () => {
                     if (isCloudMode.value && tripDocRef) {
-                        // 使用 sanitize 函數清洗所有資料
                         const dataToSave = sanitize({
                             tripDays: tripDays.value,
                             expenses: expenses.value,
@@ -494,8 +497,6 @@
                         
                         updateDoc(tripDocRef, dataToSave).catch(e => {
                             console.error("Cloud save error", e);
-                            // 這裡可以選擇是否要 alert 用戶，目前保持安靜失敗以免打擾，但會在 console 顯示
-                            // alert("存檔失敗: " + e.message); 
                         });
                     } else {
                         localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
@@ -507,7 +508,6 @@
 
                 watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
 
-                // --- UI & Modals Logic ---
                 const activeFoodCategory = ref('全區');
                 const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town', 'Silom'];
                 const foodSpots = computed(() => [...customFoodSpots.value, ...defaultMichelin]);
@@ -535,7 +535,7 @@
                 
                 const openItineraryModal = () => { 
                     isEditing.value = false; 
-                    formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; // 明確初始化
+                    formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; 
                     showItineraryModal.value = true; 
                 };
                 
@@ -558,7 +558,7 @@
                 };
                 
                 const openFoodModal = () => { 
-                    formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; // 明確初始化
+                    formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; 
                     showFoodModal.value = true; 
                 };
                 
@@ -583,7 +583,7 @@
                 const deleteCustomFood = (id) => { if(confirm('刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f=>f.id!==id); };
                 
                 const openExpenseModal = () => { 
-                    formExpense.value = {title: '', amount: '', payer: members.value[0]}; // 明確初始化
+                    formExpense.value = {title: '', amount: '', payer: members.value[0]}; 
                     showExpenseModal.value = true; 
                 };
                 
