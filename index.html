@@ -9,7 +9,7 @@
     
     <title>曼谷 6 天 5 夜親子尊享之旅</title>
 
-    <!-- 關鍵修改：iPhone 主畫面圖示設定 -->
+    <!-- iPhone 主畫面圖示 -->
     <link rel="apple-touch-icon" href="./icon.jpg">
     <link rel="icon" href="./icon.jpg">
 
@@ -22,15 +22,6 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-        
-        window.firebaseModules = { initializeApp, getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, getAuth, signInAnonymously, onAuthStateChanged };
-    </script>
-
     <style>
         body, #app { height: 100vh; height: 100dvh; }
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #F3F4F6; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
@@ -92,10 +83,10 @@
                         <h3 class="font-bold text-blue-600"><i class="fa-solid fa-cloud mr-1"></i> 開始旅程</h3>
                         
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1 text-left ml-1">已有代碼？</label>
-                            <!-- CSS 修正處：加入 w-full, min-w-0 並調整 tracking 與 text size -->
+                            <!-- 修改文字提示，讓使用者知道可以輸入自訂名稱 -->
+                            <label class="block text-xs text-gray-400 mb-1 text-left ml-1">旅程代碼 或 自訂名稱</label>
                             <div class="flex gap-2 w-full">
-                                <input v-model="inputTripId" type="text" placeholder="例如: BANGKOK_1234" class="flex-1 min-w-0 bg-gray-100 px-3 py-3 rounded-xl text-base font-bold text-center uppercase tracking-wide outline-none focus:ring-2 focus:ring-blue-500">
+                                <input v-model="inputTripId" type="text" placeholder="例如: MY_BKK_TRIP" class="flex-1 min-w-0 bg-gray-100 px-3 py-3 rounded-xl text-base font-bold text-center uppercase tracking-wide outline-none focus:ring-2 focus:ring-blue-500">
                                 <button @click="joinCloudTrip()" class="px-5 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700 whitespace-nowrap">加入</button>
                             </div>
                         </div>
@@ -106,7 +97,7 @@
                         </div>
 
                         <button @click="createCloudTrip" class="w-full py-3 bg-orange-50 border border-orange-200 text-orange-600 rounded-xl font-bold hover:bg-orange-100">
-                            建立一個新旅程
+                            建立一個新旅程 (自訂名稱)
                         </button>
                         
                         <button @click="initOffline" class="text-xs text-gray-400 underline mt-2">
@@ -277,20 +268,27 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         const { createApp, ref, computed, onMounted, watch } = Vue;
 
-        const firebaseConfig = {
-          apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
-          authDomain: "bangkok-trip-app.firebaseapp.com",
-          projectId: "bangkok-trip-app",
-          storageBucket: "bangkok-trip-app.firebasestorage.app",
-          messagingSenderId: "888598636200",
-          appId: "1:888598636200:web:c1a4ecf3b54c119418049d",
-          measurementId: "G-EWMSXN3G1H"
+        // Initialize Firebase with system configuration
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Initialize Authentication
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
         };
+        initAuth();
 
         const defaultItinerary = [
             { id: 1, date: '12/26 (五)', title: '啟程曼谷', items: [
@@ -348,15 +346,13 @@
                 const hasInitialized = ref(false);
                 const isLoading = ref(false);
                 const isCloudMode = ref(false);
-                const hasFirebaseConfig = ref(true); // Config is now built-in
                 const tripId = ref('');
                 const inputTripId = ref('');
                 
                 // --- FIREBASE VARIABLES ---
-                let db = null;
-                let auth = null;
                 let tripDocRef = null;
                 let unsubscribeSnapshot = null;
+                const currentUser = ref(null);
 
                 // Data Refs
                 const tripDays = ref(defaultItinerary);
@@ -367,24 +363,15 @@
 
                 // --- INITIALIZATION ---
                 onMounted(async () => {
-                    // Try to init Firebase immediately
-                    try {
-                        const app = initializeApp(firebaseConfig);
-                        db = getFirestore(app);
-                        auth = getAuth(app);
-                        await signInAnonymously(auth);
-                        
-                        const savedTripId = localStorage.getItem('tripId');
-                        if (savedTripId) {
-                            await joinCloudTrip(savedTripId);
-                        } else {
-                            // First time? Just show setup screen
+                    onAuthStateChanged(auth, async (user) => {
+                        currentUser.value = user;
+                        if (user) {
+                            const savedTripId = localStorage.getItem('tripId');
+                            if (savedTripId) {
+                                await joinCloudTrip(savedTripId);
+                            }
                         }
-                    } catch (e) {
-                        console.error("Firebase init error", e);
-                        // Fallback to offline if firebase fails
-                        initOffline();
-                    }
+                    });
                 });
 
                 // --- OFFLINE MODE ---
@@ -406,8 +393,19 @@
                     if (localFood) customFoodSpots.value = JSON.parse(localFood);
                 };
 
+                // UPDATED: Function to allow custom naming
                 const createCloudTrip = async () => {
-                    const newId = (inputTripId.value || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
+                    let idToUse = inputTripId.value;
+                    
+                    // 如果輸入框是空的，彈窗詢問是否要自訂名字
+                    if (!idToUse) {
+                        const userCustomName = prompt("請輸入旅程名稱 (例如: MY_TRIP)。\n如果不輸入，系統將自動產生。", "");
+                        if (userCustomName) {
+                            idToUse = userCustomName;
+                        }
+                    }
+
+                    const newId = (idToUse || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
                     await connectToTrip(newId, true);
                 };
 
@@ -418,12 +416,13 @@
                 };
 
                 const connectToTrip = async (id, isNew) => {
-                    if (!db) return alert("無法連線到資料庫");
+                    if (!currentUser.value) return;
+
                     isLoading.value = true;
                     tripId.value = id;
                     
-                    const { doc, onSnapshot, setDoc } = window.firebaseModules;
-                    tripDocRef = doc(db, 'artifacts', 'bangkok_app', 'public', 'data', 'trips', id);
+                    // Use dynamic appId instead of hardcoded 'bangkok_app'
+                    tripDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
 
                     try {
                         if (isNew) {
@@ -450,6 +449,11 @@
                             isCloudMode.value = true;
                             localStorage.setItem('appMode', 'cloud');
                             localStorage.setItem('tripId', id);
+                        }, (error) => {
+                             console.error("Snapshot error:", error);
+                             isLoading.value = false;
+                             // Fallback to offline if permission denied (likely means different app ID context)
+                             initOffline();
                         });
 
                     } catch (e) {
@@ -461,7 +465,6 @@
 
                 const saveData = () => {
                     if (isCloudMode.value && tripDocRef) {
-                        const { updateDoc } = window.firebaseModules;
                         updateDoc(tripDocRef, {
                             tripDays: tripDays.value,
                             expenses: expenses.value,
@@ -563,7 +566,7 @@
                 const updateFromHKD = () => calcTHB.value = calcHKD.value ? (calcHKD.value*currentRate.value).toFixed(0) : '';
 
                 return {
-                    currentTab, hasInitialized, isLoading, isCloudMode, hasFirebaseConfig, tripId, inputTripId,
+                    currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId,
                     initOffline, createCloudTrip, joinCloudTrip,
                     tripDays, activeDayIndex, currentDayItems, addDay,
                     showItineraryModal, formItinerary, isEditing, openItineraryModal, editItem, saveItinerary, deleteItinerary,
