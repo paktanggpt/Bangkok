@@ -78,15 +78,6 @@
                     <div v-else class="bg-white p-6 rounded-2xl shadow-sm border border-blue-100 space-y-4">
                         <h3 class="font-bold text-blue-600"><i class="fa-solid fa-cloud mr-1"></i> 開始旅程</h3>
                         
-                        <!-- 數據庫設定提示 -->
-                        <div v-if="!hasCustomConfig" class="bg-yellow-50 border border-yellow-200 p-3 rounded-xl text-xs text-yellow-800 mb-2">
-                            <p class="font-bold"><i class="fa-solid fa-triangle-exclamation"></i> 尚未設定資料庫</p>
-                            <p class="mt-1">若要在 GitHub Pages 使用，請先設定您的 Firebase Config。</p>
-                            <button @click="showConfigModal = true" class="mt-2 w-full py-2 bg-yellow-100 hover:bg-yellow-200 rounded-lg font-bold text-yellow-900">
-                                <i class="fa-solid fa-wrench"></i> 設定資料庫
-                            </button>
-                        </div>
-
                         <div>
                             <label class="block text-xs text-gray-400 mb-1 text-left ml-1">旅程代碼 或 自訂名稱</label>
                             <div class="flex gap-2 w-full">
@@ -105,7 +96,7 @@
                         </button>
                         
                         <button @click="initOffline" class="text-xs text-gray-400 underline mt-2">
-                            跳過，使用單機版 (資料不互通)
+                            跳過，使用單機版
                         </button>
                     </div>
                 </div>
@@ -115,11 +106,8 @@
             <div v-else>
                 <!-- ITINERARY TAB -->
                 <div v-if="currentTab === 'itinerary'" class="space-y-4">
-                    <div class="rounded-2xl overflow-hidden shadow-md mb-4 border border-gray-100 relative h-40 bg-gray-200">
-                        <img src="https://images.unsplash.com/photo-1508009603885-50cf7c579365?q=80&w=1000&auto=format&fit=crop" alt="Bangkok" class="w-full h-full object-cover block">
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-4">
-                            <span class="text-white font-bold text-lg">Bangkok City of Angels</span>
-                        </div>
+                    <div class="rounded-2xl overflow-hidden shadow-md mb-4 border border-gray-100">
+                        <img src="./banner.jpg" alt="Bangkok" class="w-full h-auto object-cover block" onerror="this.style.display='none'">
                     </div>
 
                     <div class="flex space-x-3 overflow-x-auto no-scrollbar pb-2">
@@ -225,19 +213,6 @@
             </div>
         </main>
 
-        <!-- Config Modal -->
-        <div v-if="showConfigModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
-            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                <h3 class="text-lg font-bold text-gray-800 mb-2">設定您的資料庫</h3>
-                <p class="text-xs text-gray-500 mb-4">請貼上 Firebase Console > Project Settings > General 中的 `firebaseConfig` 物件內容 (JSON格式)。</p>
-                <textarea v-model="configInput" rows="8" class="w-full bg-gray-100 rounded-xl p-3 text-xs font-mono mb-4 border border-gray-200" placeholder='{ "apiKey": "...", "authDomain": "...", ... }'></textarea>
-                <div class="flex gap-2">
-                    <button @click="showConfigModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button>
-                    <button @click="saveCustomConfig" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg">儲存並重啟</button>
-                </div>
-            </div>
-        </div>
-
         <!-- Floating Action Button -->
         <button v-if="hasInitialized && currentTab === 'itinerary'" @click="openItineraryModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-orange-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-50"><i class="fa-solid fa-plus"></i></button>
         <button v-if="hasInitialized && currentTab === 'food'" @click="openFoodModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-michelin text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-50"><i class="fa-solid fa-plus"></i></button>
@@ -267,10 +242,6 @@
                 </div>
 
                 <div class="mb-4">
-                    <button @click="showConfigModal = true" class="w-full py-2 border border-gray-300 rounded-xl text-sm font-bold text-gray-600"><i class="fa-solid fa-wrench"></i> 修改資料庫設定</button>
-                </div>
-
-                <div class="mb-4">
                     <label class="block text-xs font-bold text-gray-500 mb-2">旅伴管理</label>
                     <div class="flex gap-2 mb-2"><input v-model="newMemberName" placeholder="輸入名字" class="flex-1 bg-gray-100 rounded-xl px-4 py-2 outline-none"><button @click="addMember" class="bg-gray-800 text-white px-4 rounded-xl font-bold">+</button></div>
                     <div class="flex flex-wrap gap-2 mt-3"><div v-for="(m, idx) in members" :key="idx" class="bg-gray-100 px-3 py-1 rounded-full text-sm flex items-center gap-2">{{ m }}<button @click="removeMember(idx)" class="text-gray-400 hover:text-red-500">×</button></div></div>
@@ -294,388 +265,355 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
         const { createApp, ref, computed, onMounted, watch } = Vue;
 
-        createApp({
-            setup() {
-                const currentTab = ref('itinerary');
-                const hasInitialized = ref(false);
-                const isLoading = ref(false);
-                const isCloudMode = ref(false);
-                const tripId = ref('');
-                const inputTripId = ref('');
-                
-                // Config Handling
-                const showConfigModal = ref(false);
-                const configInput = ref('');
-                const hasCustomConfig = ref(false);
+        const defaultFirebaseConfig = {
+          apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
+          authDomain: "bangkok-trip-app.firebaseapp.com",
+          projectId: "bangkok-trip-app",
+          storageBucket: "bangkok-trip-app.firebasestorage.app",
+          messagingSenderId: "888598636200",
+          appId: "1:888598636200:web:c1a4ecf3b54c119418049d",
+          measurementId: "G-EWMSXN3G1H"
+        };
 
-                let tripDocRef = null;
-                let unsubscribeSnapshot = null;
-                const currentUser = ref(null);
-                const authUid = ref('');
-                
-                // Init Firebase Variables
-                let app, auth, db;
-                let appId = 'bangkok_app';
-                let isInternalEnv = false;
+        let firebaseConfig;
+        let appId;
+        let isInternalEnv = false;
 
-                const defaultItinerary = [
-                    { id: 1, date: '12/26 (五)', title: '啟程曼谷', items: [
-                        { id: 101, time: '12:05', title: '抵達 BKK 機場', location: 'Suvarnabhumi Airport', desc: '領完行李後，前往預定好的專車接機點集合。', transport: '包車/接送' },
-                        { id: 102, time: '14:00', title: '飯店 Check-in & 休息', location: 'Centre Point Hotel Sukhumvit 10', thaiAddr: '39 ซอย สุขุมวิท 10 แขวงคลองเตย', desc: '讓長輩小孩先休息，整理行李。', tags: ['住宿'] },
-                        { id: 103, time: '15:30', title: 'Chef Ple 芒果糯米飯', location: 'Chef Ple Thai Mango Sticky Rice', desc: '在 Times Square Building 旁。可外帶回飯店吃。', transport: '步行/TukTuk' },
-                        { id: 104, time: '17:30', title: 'EmSphere 商場晚餐', location: 'EmSphere', thaiAddr: '628 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย', desc: '餐廳：Kub Kao Kub Pla (吃飯吃魚)。環境舒適，口味適合全家。', transport: 'Grab/包車', tags: ['晚餐'] }
-                    ]},
-                    // ... (其他天數保持原樣，為節省空間省略，實際執行時請保留)
-                ];
-                
-                const defaultMichelin = [
-                    { name: "Jay Fai (痣姐)", engName: "Raan Jay Fai", area: "舊城區 (Old Town)", category: "Old Town", level: "1 Star", type: "街頭熱炒", mustEat: "黃金蟹肉蛋捲 (Crab Omelette), 醉漢麵", price: "฿฿฿฿", note: "價格昂貴，需排隊數小時或預約。唯一米芝蓮星級路邊攤。" },
-                    { name: "Thipsamai (鬼門泰式炒麵)", engName: "Thipsamai Pad Thai Pratoopee", area: "舊城區 (Old Town)", category: "Old Town", level: "Bib", type: "炒河粉", mustEat: "蛋包泰式炒河 (Superb Pad Thai)", price: "฿฿", note: "就在 Jay Fai 旁邊，排隊人潮多但流動快。橘子汁必點！" },
-                    // ... (其他餐廳保持原樣)
-                ];
+        if (typeof __firebase_config !== 'undefined') {
+            firebaseConfig = JSON.parse(__firebase_config);
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            isInternalEnv = true;
+        } else {
+            console.log("Running in External/GitHub Mode");
+            firebaseConfig = defaultFirebaseConfig;
+            appId = 'bangkok_app'; 
+        }
 
-                const tripDays = ref(defaultItinerary);
-                const expenses = ref([]);
-                const members = ref(['我', '家人A']);
-                const customFoodSpots = ref([]);
-                const activeDayIndex = ref(0);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-                // --- Firebase 初始化邏輯 ---
-                const initializeFirebase = async () => {
-                    let firebaseConfig;
-                    
-                    // 1. 優先檢查是否在 AI 內部環境
-                    if (typeof __firebase_config !== 'undefined') {
-                        firebaseConfig = JSON.parse(__firebase_config);
-                        appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                        isInternalEnv = true;
-                        hasCustomConfig.value = true;
-                    } 
-                    // 2. 檢查是否有自訂 Config (在 localStorage)
-                    else {
-                        const localConfig = localStorage.getItem('custom_firebase_config');
-                        if (localConfig) {
-                            try {
-                                firebaseConfig = JSON.parse(localConfig);
-                                hasCustomConfig.value = true;
-                            } catch(e) { console.error("Invalid local config"); }
-                        }
-                    }
-
-                    // 3. 如果都沒有，使用 Dummy Config (這會導致無法連線，所以會提示用戶)
-                    if (!firebaseConfig) {
-                        console.warn("No firebase config found. App will run in offline mode unless config is provided.");
-                        return; // 等待用戶輸入設定
-                    }
-
-                    try {
-                        app = initializeApp(firebaseConfig);
-                        auth = getAuth(app);
-                        db = getFirestore(app);
-
-                        onAuthStateChanged(auth, async (user) => {
-                            currentUser.value = user;
-                            authUid.value = user ? user.uid : '';
-                            if (user) {
-                                const savedTripId = localStorage.getItem('tripId');
-                                if (savedTripId) await joinCloudTrip(savedTripId);
-                            }
-                        });
-
-                        // 登入
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            try { await signInWithCustomToken(auth, __initial_auth_token); } 
-                            catch (e) { await signInAnonymously(auth); }
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) {
-                        console.error("Firebase Init Error:", e);
-                        alert("資料庫連線失敗，請檢查設定。");
-                    }
-                };
-
-                const saveCustomConfig = () => {
-                    try {
-                        const conf = JSON.parse(configInput.value);
-                        localStorage.setItem('custom_firebase_config', JSON.stringify(conf));
-                        alert("設定已儲存，頁面將重新整理。");
-                        location.reload();
-                    } catch(e) {
-                        alert("設定格式錯誤，請確保是正確的 JSON 格式。");
-                    }
-                };
-
-                onMounted(() => {
-                    initializeFirebase();
-                });
-
-                const initOffline = () => {
-                    isCloudMode.value = false;
-                    localStorage.setItem('appMode', 'offline');
-                    loadFromLocalStorage();
-                    hasInitialized.value = true;
-                };
-
-                const loadFromLocalStorage = () => {
-                    const localTrips = localStorage.getItem('tripDays_v2');
-                    if (localTrips) tripDays.value = JSON.parse(localTrips);
-                    const localExp = localStorage.getItem('expenses');
-                    if (localExp) expenses.value = JSON.parse(localExp);
-                    const localMem = localStorage.getItem('members');
-                    if (localMem) members.value = JSON.parse(localMem);
-                    const localFood = localStorage.getItem('customFoodSpots');
-                    if (localFood) customFoodSpots.value = JSON.parse(localFood);
-                };
-
-                const createCloudTrip = async () => {
-                    if (!db) return alert("請先設定資料庫！");
-                    let idToUse = inputTripId.value;
-                    if (!idToUse) {
-                        const userCustomName = prompt("請輸入旅程名稱 (例如: FWD_BKK_TRIP)。\n如果不輸入，系統將自動產生。", "");
-                        if (userCustomName) idToUse = userCustomName;
-                    }
-                    const newId = (idToUse || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
-                    await connectToTrip(newId, true);
-                };
-
-                const joinCloudTrip = async (id = null) => {
-                    if (!db) return alert("請先設定資料庫！");
-                    const targetId = id || inputTripId.value.toUpperCase();
-                    if(!targetId) return alert("請輸入代碼");
-                    await connectToTrip(targetId, false);
-                };
-
-                // --- 關鍵路徑修正：符合用戶截圖 trips/{id} ---
-                const getTripDocRef = (id) => {
-                    if (isInternalEnv) {
-                        return doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
-                    } else {
-                        // 外部環境直接存取根目錄 trips 集合
-                        return doc(db, 'trips', id);
-                    }
-                };
-
-                const connectToTrip = async (id, isNew) => {
-                    if (!currentUser.value) {
-                        alert("尚未登入資料庫，請稍候或檢查設定。");
-                        return;
-                    }
-                    isLoading.value = true;
-                    tripId.value = id;
-                    
-                    tripDocRef = getTripDocRef(id);
-
-                    try {
-                        if (isNew) {
-                            await setDoc(tripDocRef, {
-                                tripDays: defaultItinerary,
-                                expenses: [],
-                                members: ['我'],
-                                customFoodSpots: []
-                            });
-                        }
-
-                        if (unsubscribeSnapshot) unsubscribeSnapshot();
-
-                        unsubscribeSnapshot = onSnapshot(tripDocRef, (docSnap) => {
-                            if (docSnap.exists()) {
-                                const data = docSnap.data();
-                                if (data.tripDays) tripDays.value = data.tripDays;
-                                if (data.expenses) expenses.value = data.expenses;
-                                if (data.members) members.value = data.members;
-                                if (data.customFoodSpots) customFoodSpots.value = data.customFoodSpots;
-                            }
-                            isLoading.value = false;
-                            hasInitialized.value = true;
-                            isCloudMode.value = true;
-                            localStorage.setItem('appMode', 'cloud');
-                            localStorage.setItem('tripId', id);
-                        }, (error) => {
-                             console.error("Snapshot error:", error);
-                             isLoading.value = false;
-                             alert(`讀取失敗: ${error.message}\n請檢查 Firebase Console 的 Rules 設定 (應允許 read/write)。`);
-                             initOffline(); // Fallback
-                        });
-
-                    } catch (e) {
-                        console.error(e);
-                        alert("連線失敗：" + e.message);
-                        isLoading.value = false;
-                    }
-                };
-
-                const sanitize = (obj) => {
-                    return JSON.parse(JSON.stringify(obj, (key, value) => {
-                        return value === undefined ? null : value;
-                    }));
-                };
-
-                const saveData = () => {
-                    if (isCloudMode.value && tripDocRef) {
-                        const dataToSave = sanitize({
-                            tripDays: tripDays.value,
-                            expenses: expenses.value,
-                            members: members.value,
-                            customFoodSpots: customFoodSpots.value
-                        });
-                        
-                        updateDoc(tripDocRef, dataToSave).catch(e => {
-                            console.error("Cloud save error", e);
-                            alert(`存檔失敗: ${e.message}\n可能原因：權限不足。請檢查 Firebase Rules。`);
-                        });
-                    } else {
-                        localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
-                        localStorage.setItem('expenses', JSON.stringify(expenses.value));
-                        localStorage.setItem('members', JSON.stringify(members.value));
-                        localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
-                    }
-                };
-
-                watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
-
-                const activeFoodCategory = ref('全區');
-                const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town', 'Silom'];
-                const foodSpots = computed(() => [...customFoodSpots.value, ...defaultMichelin]);
-                const filteredFoodSpots = computed(() => activeFoodCategory.value === '全區' ? foodSpots.value : foodSpots.value.filter(s => s.category === activeFoodCategory.value));
-                
-                const showItineraryModal = ref(false);
-                const showFoodModal = ref(false);
-                const showExpenseModal = ref(false);
-                const showSettlementModal = ref(false);
-                const showSettings = ref(false);
-                const showThaiAddrModal = ref(false);
-                const thaiAddrContent = ref('');
-                const isEditing = ref(false);
-                const editingId = ref(null);
-                
-                const formItinerary = ref({});
-                const formFood = ref({});
-                const formExpense = ref({});
-                
-                const currentDayItems = computed(() => tripDays.value[activeDayIndex.value]?.items || []);
-                const totalExpense = computed(() => expenses.value.reduce((sum, i) => sum + i.amount, 0));
-                
-                const addDay = () => { tripDays.value.push({id: Date.now(), date: `Day ${tripDays.value.length+1}`, items:[]}); activeDayIndex.value = tripDays.value.length-1; };
-                
-                const openItineraryModal = () => { 
-                    isEditing.value = false; 
-                    formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; 
-                    showItineraryModal.value = true; 
-                };
-                
-                const saveItinerary = () => {
-                    if(!formItinerary.value.title) return;
-                    if(isEditing.value) {
-                        const day = tripDays.value[activeDayIndex.value];
-                        const idx = day.items.findIndex(i => i.id === editingId.value);
-                        if(idx!==-1) day.items[idx] = {...formItinerary.value, id: editingId.value};
-                    } else {
-                        tripDays.value[activeDayIndex.value].items.push({id: Date.now(), ...formItinerary.value});
-                    }
-                    showItineraryModal.value = false;
-                };
-                const editItem = (item) => { isEditing.value = true; editingId.value = item.id; formItinerary.value = {...item}; showItineraryModal.value = true; };
-                const deleteItinerary = () => { 
-                    const day = tripDays.value[activeDayIndex.value]; 
-                    day.items = day.items.filter(i => i.id !== editingId.value); 
-                    showItineraryModal.value = false; 
-                };
-                
-                const openFoodModal = () => { 
-                    formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; 
-                    showFoodModal.value = true; 
-                };
-                
-                const saveFood = () => { 
-                    try {
-                         const newFood = {
-                             id: Date.now(), 
-                             isCustom:true, 
-                             name: formFood.value.name || '未命名餐廳', 
-                             engName: formFood.value.engName || '',
-                             category: formFood.value.category || 'Siam',
-                             mustEat: formFood.value.mustEat || '',
-                             price: formFood.value.price || '฿'
-                         };
-                         customFoodSpots.value.unshift(newFood); 
-                         showFoodModal.value = false; 
-                    } catch(e) {
-                        alert("新增失敗: " + e.message);
-                    }
-                };
-                
-                const deleteCustomFood = (id) => { if(confirm('刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f=>f.id!==id); };
-                
-                const openExpenseModal = () => { 
-                    formExpense.value = {title: '', amount: '', payer: members.value[0]}; 
-                    showExpenseModal.value = true; 
-                };
-                
-                const saveExpense = () => { 
-                    if (formExpense.value.amount === '') return alert("請輸入金額");
-                    try {
-                        const newExpense = {
-                            id: Date.now(), 
-                            title: formExpense.value.title || '一般消費',
-                            amount: Number(formExpense.value.amount) || 0,
-                            payer: formExpense.value.payer || members.value[0]
-                        };
-                        expenses.value.unshift(newExpense); 
-                        showExpenseModal.value = false; 
-                    } catch (e) {
-                        alert("新增失敗: " + e.message);
-                    }
-                };
-                
-                const deleteExpense = (id) => { if(confirm('刪除?')) expenses.value = expenses.value.filter(e=>e.id!==id); };
-                
-                const settlements = computed(() => {
-                    if (members.value.length === 0) return [];
-                    const balances = {}; members.value.forEach(m => balances[m] = 0);
-                    const split = totalExpense.value / members.value.length;
-                    expenses.value.forEach(e => { if(balances[e.payer]!==undefined) balances[e.payer]+=e.amount; });
-                    let debtors=[], creditors=[];
-                    for(const m in balances) { const net=balances[m]-split; if(net<-0.1) debtors.push({name:m, amt:Math.abs(net)}); else if(net>0.1) creditors.push({name:m, amt:net}); }
-                    const res = []; let i=0,j=0;
-                    while(i<debtors.length && j<creditors.length) {
-                        const amt = Math.min(debtors[i].amt, creditors[j].amt);
-                        if(amt>0) res.push({from:debtors[i].name, to:creditors[j].name, amount:amt});
-                        debtors[i].amt-=amt; creditors[j].amt-=amt;
-                        if(debtors[i].amt<0.1) i++; if(creditors[j].amt<0.1) j++;
-                    }
-                    return res;
-                });
-                const getPaidAmount = (p) => expenses.value.filter(e=>e.payer===p).reduce((s,e)=>s+e.amount,0);
-                
-                const newMemberName = ref('');
-                const addMember = () => { if(newMemberName.value && !members.value.includes(newMemberName.value)) { members.value.push(newMemberName.value); newMemberName.value=''; } };
-                const removeMember = (idx) => members.value.splice(idx,1);
-                
-                const resetAllData = () => { if(confirm('重置所有資料?')) { localStorage.clear(); location.reload(); } };
-                
-                const showThaiAddress = (item) => { thaiAddrContent.value = item.thaiAddr; showThaiAddrModal.value = true; };
-                const openMap = (loc) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc+' Bangkok')}`);
-
-                const calcTHB = ref(''); const calcHKD = ref(''); const currentRate = ref(4.4);
-                const updateFromTHB = () => calcHKD.value = calcTHB.value ? (calcTHB.value/currentRate.value).toFixed(2) : '';
-                const updateFromHKD = () => calcTHB.value = calcHKD.value ? (calcHKD.value*currentRate.value).toFixed(0) : '';
-
-                return {
-                    currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId, authUid,
-                    initOffline, createCloudTrip, joinCloudTrip,
-                    tripDays, activeDayIndex, currentDayItems, addDay,
-                    showItineraryModal, formItinerary, isEditing, openItineraryModal, editItem, saveItinerary, deleteItinerary,
-                    expenses, totalExpense, showExpenseModal, formExpense, saveExpense, deleteExpense,
-                    showFoodModal, formFood, saveFood, deleteCustomFood,
-                    foodCategories, activeFoodCategory, filteredFoodSpots,
-                    showSettings, members, newMemberName, addMember, removeMember, resetAllData,
-                    showSettlementModal, settlements, getPaidAmount, showThaiAddrModal, thaiAddrContent, showThaiAddress, openMap,
-                    calcTHB, calcHKD, currentRate, updateFromTHB, updateFromHKD,
-                    showConfigModal, configInput, hasCustomConfig, saveCustomConfig
-                };
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                try {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } catch (e) {
+                    await signInAnonymously(auth);
+                }
+            } else {
+                await signInAnonymously(auth);
             }
-        }).mount('#app');
+        };
+        initAuth();
+
+        const defaultItinerary = [
+            { id: 1, date: '12/26 (五)', title: '啟程曼谷', items: [
+                { id: 101, time: '12:05', title: '抵達 BKK 機場', location: 'Suvarnabhumi Airport', desc: '領完行李後，前往預定好的專車接機點集合。', transport: '包車/接送' },
+                { id: 102, time: '14:00', title: '飯店 Check-in & 休息', location: 'Centre Point Hotel Sukhumvit 10', thaiAddr: '39 ซอย สุขุมวิท 10 แขวงคลองเตย', desc: '讓長輩小孩先休息，整理行李。', tags: ['住宿'] },
+                { id: 103, time: '15:30', title: 'Chef Ple 芒果糯米飯', location: 'Chef Ple Thai Mango Sticky Rice', desc: '在 Times Square Building 旁。可外帶回飯店吃。', transport: '步行/TukTuk' },
+                { id: 104, time: '17:30', title: 'EmSphere 商場晚餐', location: 'EmSphere', thaiAddr: '628 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย', desc: '餐廳：Kub Kao Kub Pla (吃飯吃魚)。環境舒適，口味適合全家。', transport: 'Grab/包車', tags: ['晚餐'] }
+            ]},
+            // ... (其他天數保持原樣，為節省空間省略，實際執行時請保留)
+        ];
+        
+        const defaultMichelin = [
+            { name: "Jay Fai (痣姐)", engName: "Raan Jay Fai", area: "舊城區 (Old Town)", category: "Old Town", level: "1 Star", type: "街頭熱炒", mustEat: "黃金蟹肉蛋捲 (Crab Omelette), 醉漢麵", price: "฿฿฿฿", note: "價格昂貴，需排隊數小時或預約。唯一米芝蓮星級路邊攤。" },
+            { name: "Thipsamai (鬼門泰式炒麵)", engName: "Thipsamai Pad Thai Pratoopee", area: "舊城區 (Old Town)", category: "Old Town", level: "Bib", type: "炒河粉", mustEat: "蛋包泰式炒河 (Superb Pad Thai)", price: "฿฿", note: "就在 Jay Fai 旁邊，排隊人潮多但流動快。橘子汁必點！" },
+            // ... (其他餐廳保持原樣)
+        ];
+
+        const tripDays = ref(defaultItinerary);
+        const expenses = ref([]);
+        const members = ref(['我', '家人A']);
+        const customFoodSpots = ref([]);
+        const activeDayIndex = ref(0);
+
+        // --- Firebase 初始化邏輯 ---
+        const initializeFirebase = async () => {
+            // 省略自定義設定邏輯，直接使用預設設定
+            onAuthStateChanged(auth, async (user) => {
+                currentUser.value = user;
+                authUid.value = user ? user.uid : '';
+                if (user) {
+                    const savedTripId = localStorage.getItem('tripId');
+                    if (savedTripId) await joinCloudTrip(savedTripId);
+                }
+            });
+        };
+
+        onMounted(() => {
+            initializeFirebase();
+        });
+
+        const initOffline = () => {
+            isCloudMode.value = false;
+            localStorage.setItem('appMode', 'offline');
+            loadFromLocalStorage();
+            hasInitialized.value = true;
+        };
+
+        const loadFromLocalStorage = () => {
+            const localTrips = localStorage.getItem('tripDays_v2');
+            if (localTrips) tripDays.value = JSON.parse(localTrips);
+            const localExp = localStorage.getItem('expenses');
+            if (localExp) expenses.value = JSON.parse(localExp);
+            const localMem = localStorage.getItem('members');
+            if (localMem) members.value = JSON.parse(localMem);
+            const localFood = localStorage.getItem('customFoodSpots');
+            if (localFood) customFoodSpots.value = JSON.parse(localFood);
+        };
+
+        const createCloudTrip = async () => {
+            let idToUse = inputTripId.value;
+            if (!idToUse) {
+                const userCustomName = prompt("請輸入旅程名稱 (例如: FWD_BKK_TRIP)。\n如果不輸入，系統將自動產生。", "");
+                if (userCustomName) idToUse = userCustomName;
+            }
+            const newId = (idToUse || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
+            await connectToTrip(newId, true);
+        };
+
+        const joinCloudTrip = async (id = null) => {
+            const targetId = id || inputTripId.value.toUpperCase();
+            if(!targetId) return alert("請輸入代碼");
+            await connectToTrip(targetId, false);
+        };
+
+        // --- 關鍵路徑修正：符合用戶截圖 trips/{id} ---
+        const getTripDocRef = (id) => {
+            if (isInternalEnv) {
+                return doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
+            } else {
+                // 外部環境直接存取根目錄 trips 集合
+                return doc(db, 'trips', id);
+            }
+        };
+
+        const connectToTrip = async (id, isNew) => {
+            if (!currentUser.value) {
+                // 如果未登入，嘗試等待一下或直接進入離線模式
+                // 這裡選擇簡單提示，實際使用應有重試機制
+                console.warn("User not logged in yet, retrying...");
+                // 簡單重試一次匿名登入
+                try { await signInAnonymously(auth); } catch(e) {}
+            }
+            
+            isLoading.value = true;
+            tripId.value = id;
+            
+            tripDocRef = getTripDocRef(id);
+
+            try {
+                if (isNew) {
+                    await setDoc(tripDocRef, {
+                        tripDays: defaultItinerary,
+                        expenses: [],
+                        members: ['我'],
+                        customFoodSpots: []
+                    });
+                }
+
+                if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+                unsubscribeSnapshot = onSnapshot(tripDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.tripDays) tripDays.value = data.tripDays;
+                        if (data.expenses) expenses.value = data.expenses;
+                        if (data.members) members.value = data.members;
+                        if (data.customFoodSpots) customFoodSpots.value = data.customFoodSpots;
+                    }
+                    isLoading.value = false;
+                    hasInitialized.value = true;
+                    isCloudMode.value = true;
+                    localStorage.setItem('appMode', 'cloud');
+                    localStorage.setItem('tripId', id);
+                }, (error) => {
+                     console.error("Snapshot error:", error);
+                     isLoading.value = false;
+                     // 發生錯誤時（例如權限不足或設定錯誤），自動切換到離線模式，不讓用戶卡住
+                     console.warn("Falling back to offline mode due to error.");
+                     initOffline(); 
+                });
+
+            } catch (e) {
+                console.error(e);
+                alert("連線失敗：" + e.message);
+                isLoading.value = false;
+                initOffline();
+            }
+        };
+
+        const sanitize = (obj) => {
+            return JSON.parse(JSON.stringify(obj, (key, value) => {
+                return value === undefined ? null : value;
+            }));
+        };
+
+        const saveData = () => {
+            if (isCloudMode.value && tripDocRef) {
+                const dataToSave = sanitize({
+                    tripDays: tripDays.value,
+                    expenses: expenses.value,
+                    members: members.value,
+                    customFoodSpots: customFoodSpots.value
+                });
+                
+                updateDoc(tripDocRef, dataToSave).catch(e => {
+                    console.error("Cloud save error", e);
+                    // 靜默失敗，不干擾使用者體驗
+                });
+            } else {
+                localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
+                localStorage.setItem('expenses', JSON.stringify(expenses.value));
+                localStorage.setItem('members', JSON.stringify(members.value));
+                localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
+            }
+        };
+
+        watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
+
+        const activeFoodCategory = ref('全區');
+        const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town', 'Silom'];
+        const foodSpots = computed(() => [...customFoodSpots.value, ...defaultMichelin]);
+        const filteredFoodSpots = computed(() => activeFoodCategory.value === '全區' ? foodSpots.value : foodSpots.value.filter(s => s.category === activeFoodCategory.value));
+        
+        const showItineraryModal = ref(false);
+        const showFoodModal = ref(false);
+        const showExpenseModal = ref(false);
+        const showSettlementModal = ref(false);
+        const showSettings = ref(false);
+        const showThaiAddrModal = ref(false);
+        const thaiAddrContent = ref('');
+        const isEditing = ref(false);
+        const editingId = ref(null);
+        
+        const formItinerary = ref({});
+        const formFood = ref({});
+        const formExpense = ref({});
+        
+        const currentDayItems = computed(() => tripDays.value[activeDayIndex.value]?.items || []);
+        const totalExpense = computed(() => expenses.value.reduce((sum, i) => sum + i.amount, 0));
+        
+        const addDay = () => { tripDays.value.push({id: Date.now(), date: `Day ${tripDays.value.length+1}`, items:[]}); activeDayIndex.value = tripDays.value.length-1; };
+        
+        const openItineraryModal = () => { 
+            isEditing.value = false; 
+            formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; 
+            showItineraryModal.value = true; 
+        };
+        
+        const saveItinerary = () => {
+            if(!formItinerary.value.title) return;
+            if(isEditing.value) {
+                const day = tripDays.value[activeDayIndex.value];
+                const idx = day.items.findIndex(i => i.id === editingId.value);
+                if(idx!==-1) day.items[idx] = {...formItinerary.value, id: editingId.value};
+            } else {
+                tripDays.value[activeDayIndex.value].items.push({id: Date.now(), ...formItinerary.value});
+            }
+            showItineraryModal.value = false;
+        };
+        const editItem = (item) => { isEditing.value = true; editingId.value = item.id; formItinerary.value = {...item}; showItineraryModal.value = true; };
+        const deleteItinerary = () => { 
+            const day = tripDays.value[activeDayIndex.value]; 
+            day.items = day.items.filter(i => i.id !== editingId.value); 
+            showItineraryModal.value = false; 
+        };
+        
+        const openFoodModal = () => { 
+            formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; 
+            showFoodModal.value = true; 
+        };
+        
+        const saveFood = () => { 
+            try {
+                 const newFood = {
+                     id: Date.now(), 
+                     isCustom:true, 
+                     name: formFood.value.name || '未命名餐廳', 
+                     engName: formFood.value.engName || '',
+                     category: formFood.value.category || 'Siam',
+                     mustEat: formFood.value.mustEat || '',
+                     price: formFood.value.price || '฿'
+                 };
+                 customFoodSpots.value.unshift(newFood); 
+                 showFoodModal.value = false; 
+            } catch(e) {
+                alert("新增失敗: " + e.message);
+            }
+        };
+        
+        const deleteCustomFood = (id) => { if(confirm('刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f=>f.id!==id); };
+        
+        const openExpenseModal = () => { 
+            formExpense.value = {title: '', amount: '', payer: members.value[0]}; 
+            showExpenseModal.value = true; 
+        };
+        
+        const saveExpense = () => { 
+            if (formExpense.value.amount === '') return alert("請輸入金額");
+            try {
+                const newExpense = {
+                    id: Date.now(), 
+                    title: formExpense.value.title || '一般消費',
+                    amount: Number(formExpense.value.amount) || 0,
+                    payer: formExpense.value.payer || members.value[0]
+                };
+                expenses.value.unshift(newExpense); 
+                showExpenseModal.value = false; 
+            } catch (e) {
+                alert("新增失敗: " + e.message);
+            }
+        };
+        
+        const deleteExpense = (id) => { if(confirm('刪除?')) expenses.value = expenses.value.filter(e=>e.id!==id); };
+        
+        const settlements = computed(() => {
+            if (members.value.length === 0) return [];
+            const balances = {}; members.value.forEach(m => balances[m] = 0);
+            const split = totalExpense.value / members.value.length;
+            expenses.value.forEach(e => { if(balances[e.payer]!==undefined) balances[e.payer]+=e.amount; });
+            let debtors=[], creditors=[];
+            for(const m in balances) { const net=balances[m]-split; if(net<-0.1) debtors.push({name:m, amt:Math.abs(net)}); else if(net>0.1) creditors.push({name:m, amt:net}); }
+            const res = []; let i=0,j=0;
+            while(i<debtors.length && j<creditors.length) {
+                const amt = Math.min(debtors[i].amt, creditors[j].amt);
+                if(amt>0) res.push({from:debtors[i].name, to:creditors[j].name, amount:amt});
+                debtors[i].amt-=amt; creditors[j].amt-=amt;
+                if(debtors[i].amt<0.1) i++; if(creditors[j].amt<0.1) j++;
+            }
+            return res;
+        });
+        const getPaidAmount = (p) => expenses.value.filter(e=>e.payer===p).reduce((s,e)=>s+e.amount,0);
+        
+        const newMemberName = ref('');
+        const addMember = () => { if(newMemberName.value && !members.value.includes(newMemberName.value)) { members.value.push(newMemberName.value); newMemberName.value=''; } };
+        const removeMember = (idx) => members.value.splice(idx,1);
+        
+        const resetAllData = () => { if(confirm('重置所有資料?')) { localStorage.clear(); location.reload(); } };
+        
+        const showThaiAddress = (item) => { thaiAddrContent.value = item.thaiAddr; showThaiAddrModal.value = true; };
+        const openMap = (loc) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc+' Bangkok')}`);
+
+        const calcTHB = ref(''); const calcHKD = ref(''); const currentRate = ref(4.4);
+        const updateFromTHB = () => calcHKD.value = calcTHB.value ? (calcTHB.value/currentRate.value).toFixed(2) : '';
+        const updateFromHKD = () => calcTHB.value = calcHKD.value ? (calcHKD.value*currentRate.value).toFixed(0) : '';
+
+        return {
+            currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId, authUid,
+            initOffline, createCloudTrip, joinCloudTrip,
+            tripDays, activeDayIndex, currentDayItems, addDay,
+            showItineraryModal, formItinerary, isEditing, openItineraryModal, editItem, saveItinerary, deleteItinerary,
+            expenses, totalExpense, showExpenseModal, formExpense, saveExpense, deleteExpense,
+            showFoodModal, formFood, saveFood, deleteCustomFood,
+            foodCategories, activeFoodCategory, filteredFoodSpots,
+            showSettings, members, newMemberName, addMember, removeMember, resetAllData,
+            showSettlementModal, settlements, getPaidAmount, showThaiAddrModal, thaiAddrContent, showThaiAddress, openMap,
+            calcTHB, calcHKD, currentRate, updateFromTHB, updateFromHKD,
+        };
+    }
+}).mount('#app');
     </script>
     <style>
         @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
