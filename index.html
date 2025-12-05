@@ -96,14 +96,10 @@
                         </div>
 
                         <button @click="startApp" class="w-full py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-orange-600 transition">
-                            開始使用 (單機版)
+                            開始規劃
                         </button>
                         
-                        <div class="text-center pt-2">
-                            <button @click="showConfigModal = true" class="text-xs text-gray-400 underline">
-                                設定 Firebase 雲端同步
-                            </button>
-                        </div>
+                        <p class="text-xs text-center text-gray-400 mt-2">將自動連線至您的資料庫</p>
                     </div>
                 </div>
             </div>
@@ -221,19 +217,6 @@
                 </div>
             </div>
         </main>
-
-        <!-- Config Modal -->
-        <div v-if="showConfigModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
-            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                <h3 class="text-lg font-bold text-gray-800 mb-2">連線資料庫</h3>
-                <p class="text-xs text-gray-500 mb-4">若要在不同裝置間同步，請貼上 Firebase Config (JSON)。</p>
-                <textarea v-model="configInput" rows="6" class="w-full bg-gray-100 rounded-xl p-3 text-xs font-mono mb-4 border border-gray-200" placeholder='{ "apiKey": "AIza...", ... }'></textarea>
-                <div class="flex gap-2">
-                    <button @click="showConfigModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button>
-                    <button @click="saveCustomConfig" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg">連線</button>
-                </div>
-            </div>
-        </div>
 
         <!-- Floating Action Button -->
         <button v-if="hasInitialized && currentTab === 'itinerary'" @click="openItineraryModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-orange-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-50"><i class="fa-solid fa-plus"></i></button>
@@ -464,6 +447,17 @@
                     initOffline();
                 }
 
+                // 內嵌你提供的設定，確保一開即用
+                const hardcodedConfig = {
+                  apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
+                  authDomain: "bangkok-trip-app.firebaseapp.com",
+                  projectId: "bangkok-trip-app",
+                  storageBucket: "bangkok-trip-app.firebasestorage.app",
+                  messagingSenderId: "888598636200",
+                  appId: "1:888598636200:web:c1a4ecf3b54c119418049d",
+                  measurementId: "G-EWMSXN3G1H"
+                };
+
                 async function connectToTrip(id, isNew) {
                     if (!db) { initOffline(); return; }
                     
@@ -517,15 +511,21 @@
 
                 async function connectToCloud() {
                     if (!db) {
-                        showConfigModal.value = true;
-                        return;
+                        // 如果沒有 db，嘗試使用寫死的 config 初始化
+                        await initializeFirebase(hardcodedConfig);
                     }
-                    const targetId = tripId.value || 'MY_TRIP';
-                    await connectToTrip(targetId, true);
+                    if (db) {
+                        const targetId = tripId.value || 'MY_TRIP';
+                        await connectToTrip(targetId, true);
+                    } else {
+                        alert("無法初始化 Firebase，請檢查網路連線。");
+                    }
                 }
 
                 async function createCloudTrip() {
+                    if (!db) await initializeFirebase(hardcodedConfig);
                     if (!db) return startApp(); 
+                    
                     let idToUse = inputTripId.value;
                     if (!idToUse) {
                         const userCustomName = prompt("請輸入旅程名稱 (例如: FWD_BKK_TRIP)。", "");
@@ -536,6 +536,7 @@
                 }
 
                 async function joinCloudTrip(id = null) {
+                    if (!db) await initializeFirebase(hardcodedConfig);
                     if (!db) return alert("請先設定資料庫或使用單機模式");
                     const targetId = id || inputTripId.value.toUpperCase();
                     if(!targetId) return alert("請輸入代碼");
@@ -568,22 +569,27 @@
                     }
                 }
 
-                async function initializeFirebase() {
-                    let firebaseConfig;
+                async function initializeFirebase(manualConfig = null) {
+                    let firebaseConfig = manualConfig;
                     
-                    if (typeof __firebase_config !== 'undefined') {
-                        firebaseConfig = JSON.parse(__firebase_config);
-                        appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                        isInternalEnv = true;
-                        hasCustomConfig.value = true;
-                    } 
-                    else {
-                        const localConfig = localStorage.getItem('custom_firebase_config');
-                        if (localConfig) {
-                            try {
-                                firebaseConfig = JSON.parse(localConfig);
-                                hasCustomConfig.value = true;
-                            } catch(e) { console.error("Invalid local config"); }
+                    if (!firebaseConfig) {
+                        if (typeof __firebase_config !== 'undefined') {
+                            firebaseConfig = JSON.parse(__firebase_config);
+                            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                            isInternalEnv = true;
+                            hasCustomConfig.value = true;
+                        } 
+                        else {
+                            const localConfig = localStorage.getItem('custom_firebase_config');
+                            if (localConfig) {
+                                try {
+                                    firebaseConfig = JSON.parse(localConfig);
+                                    hasCustomConfig.value = true;
+                                } catch(e) { console.error("Invalid local config"); }
+                            } else {
+                                // 預設使用你提供的 Config
+                                firebaseConfig = hardcodedConfig;
+                            }
                         }
                     }
 
@@ -618,12 +624,20 @@
 
                 function saveCustomConfig() {
                     try {
-                        const conf = JSON.parse(configInput.value);
+                        let input = configInput.value.trim();
+                        if (!input.startsWith('"') && !input.startsWith('{')) {
+                             input = input.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+                        }
+                        if (input.endsWith(';')) input = input.slice(0, -1);
+                        const eqIndex = input.indexOf('=');
+                        if (eqIndex > -1) input = input.substring(eqIndex + 1);
+
+                        const conf = JSON.parse(input);
                         localStorage.setItem('custom_firebase_config', JSON.stringify(conf));
                         alert("設定已儲存，頁面將重新整理。");
                         location.reload();
                     } catch(e) {
-                        alert("設定格式錯誤，請確保是正確的 JSON 格式。");
+                        alert("設定格式錯誤，請確保是正確的 JSON 格式。\n錯誤: " + e.message);
                     }
                 }
 
