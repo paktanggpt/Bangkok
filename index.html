@@ -26,6 +26,21 @@
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         [v-cloak] { display: none !important; }
         
+        /* 針對 iOS 時間輸入框的關鍵修正 */
+        input[type="time"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background-color: #F3F4F6;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            width: 100%;
+            display: block;
+            min-height: 3rem; /* 確保有足夠點擊高度 */
+            font-size: 1rem;
+            line-height: 1.5;
+            text-align: left; /* 強制靠左 */
+        }
+        
         .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
         .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(20px); }
     </style>
@@ -41,30 +56,19 @@
 
     <div id="app" v-cloak class="flex flex-col relative max-w-md mx-auto bg-white shadow-2xl h-full">
         
-        <!-- Error Toast (Global) -->
-        <transition name="toast">
-            <div v-if="saveError" class="fixed bottom-24 left-4 right-4 bg-red-600 text-white p-4 rounded-xl shadow-2xl z-50 flex items-start gap-3">
-                <i class="fa-solid fa-triangle-exclamation mt-1"></i>
-                <div class="flex-1">
-                    <h4 class="font-bold text-sm">儲存失敗，已轉為單機模式</h4>
-                    <p class="text-xs opacity-90 mt-1">{{ saveError }}</p>
-                    <p class="text-xs font-bold mt-2 underline">您的資料已保存在本地，不會遺失。</p>
-                </div>
-                <button @click="saveError = null" class="text-white opacity-50 hover:opacity-100"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-        </transition>
+        <!-- Debug/Status Bar (Fixed at bottom) -->
+        <div class="fixed bottom-0 left-0 right-0 bg-gray-900 text-white text-[10px] p-1 px-2 z-[100] flex justify-between items-center opacity-80 pb-safe">
+            <span>{{ statusMsg }}</span>
+            <span :class="isCloudMode ? 'text-green-400' : 'text-gray-400'">
+                <i class="fa-solid fa-circle text-[6px]"></i> {{ isCloudMode ? 'Cloud' : 'Local' }}
+            </span>
+        </div>
 
         <!-- Header -->
         <header class="bg-white px-5 pt-10 pb-4 shadow-sm z-10 flex justify-between items-center sticky top-0 shrink-0">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
                     <span class="text-primary">Sawadee</span> Bangkok 🇹🇭
-                    <span v-if="isCloudMode" class="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> 線上
-                    </span>
-                    <span v-else class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                        單機
-                    </span>
                 </h1>
                 <p class="text-xs text-gray-500 font-medium mt-1">
                     {{ tripId ? '旅程: ' + tripId : '親子尊享之旅' }}
@@ -72,7 +76,6 @@
             </div>
             <button @click="showSettings = true" class="text-gray-400 hover:text-primary transition relative">
                 <i class="fa-solid fa-gear text-lg"></i>
-                <span v-if="isCloudMode" class="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></span>
             </button>
         </header>
 
@@ -88,25 +91,18 @@
                 
                 <div class="w-full space-y-3 px-4">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-blue-100 space-y-4">
-                        <h3 class="font-bold text-blue-600"><i class="fa-solid fa-map-location-dot mr-1"></i> 開始規劃</h3>
-                        
                         <div>
                             <label class="block text-xs text-gray-400 mb-1 text-left ml-1">給您的旅程取個名字</label>
                             <input v-model="inputTripId" type="text" placeholder="例如: MY_BKK_TRIP" class="w-full bg-gray-100 px-4 py-3 rounded-xl text-base font-bold text-center uppercase tracking-wide outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
 
                         <button @click="startApp" class="w-full py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-orange-600 transition">
-                            進入旅程 (單機模式)
+                            開始使用 (單機版)
                         </button>
                         
-                        <div v-if="!hasCustomConfig" class="text-center pt-2">
+                        <div class="text-center pt-2">
                             <button @click="showConfigModal = true" class="text-xs text-gray-400 underline">
-                                我想連線到我的 Firebase 資料庫
-                            </button>
-                        </div>
-                        <div v-else class="text-center pt-2">
-                             <button @click="connectToCloud" class="w-full py-2 bg-green-50 text-green-600 rounded-lg font-bold border border-green-200">
-                                <i class="fa-solid fa-cloud"></i> 連線到雲端
+                                設定 Firebase 雲端同步
                             </button>
                         </div>
                     </div>
@@ -231,7 +227,7 @@
         <div v-if="showConfigModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
             <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
                 <h3 class="text-lg font-bold text-gray-800 mb-2">連線資料庫</h3>
-                <p class="text-xs text-gray-500 mb-4">若要在不同裝置間同步，請貼上 Firebase Config (JSON)。若無則請使用單機模式。</p>
+                <p class="text-xs text-gray-500 mb-4">若要在不同裝置間同步，請貼上 Firebase Config (JSON)。</p>
                 <textarea v-model="configInput" rows="6" class="w-full bg-gray-100 rounded-xl p-3 text-xs font-mono mb-4 border border-gray-200" placeholder='{ "apiKey": "AIza...", ... }'></textarea>
                 <div class="flex gap-2">
                     <button @click="showConfigModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button>
@@ -272,12 +268,6 @@
                     <p class="text-[10px] text-gray-400">資料僅存在此裝置</p>
                 </div>
 
-                <div v-if="isCloudMode" class="mb-4 p-3 bg-blue-50 rounded-xl text-xs text-blue-800 border border-blue-100">
-                    <p class="font-bold mb-1"><i class="fa-solid fa-database"></i> 存檔失敗？權限不足？</p>
-                    <p>請到 Firebase Console -> Firestore Database -> Rules，將規則修改為：</p>
-                    <code class="block bg-white p-2 mt-1 rounded border border-blue-100 font-mono">allow read, write: if true;</code>
-                </div>
-
                 <div class="mb-4">
                     <label class="block text-xs font-bold text-gray-500 mb-2">旅伴管理</label>
                     <div class="flex gap-2 mb-2"><input v-model="newMemberName" placeholder="輸入名字" class="flex-1 bg-gray-100 rounded-xl px-4 py-2 outline-none"><button @click="addMember" class="bg-gray-800 text-white px-4 rounded-xl font-bold">+</button></div>
@@ -292,7 +282,7 @@
         </div>
 
         <!-- Settlement Modal -->
-        <div v-if="showSettlementModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto"><div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">結算建議</h3><button @click="showSettlementModal = false" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-xmark"></i></button></div><div class="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 mb-4"><p class="font-bold mb-1">總花費: ฿{{ totalExpense }}</p><p>平均每人: ฿{{ (totalExpense / members.length).toFixed(1) }}</p></div><div v-if="settlements.length > 0" class="space-y-3"><div v-for="(s, idx) in settlements" :key="idx" class="flex items-center justify-between p-3 border border-gray-100 rounded-xl shadow-sm"><div class="flex items-center gap-2"><span class="font-bold text-red-500">{{ s.from }}</span><i class="fa-solid fa-arrow-right text-gray-300 text-xs"></i><span class="font-bold text-green-500">{{ s.to }}</span></div><span class="font-mono font-bold bg-gray-100 px-2 py-1 rounded">฿{{ Math.round(s.amount) }}</span></div></div><div v-else class="text-center py-6 text-green-600 font-bold"><p>帳目已平衡！</p></div></div></div>
+        <div v-if="showSettlementModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto"><div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">結算建議</h3><button @click="showSettlementModal = false" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-xmark"></i></button></div><div class="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 mb-4"><p class="font-bold mb-1">總花費: ฿{{ totalExpense }}</p><p>平均每人: ฿{{ (totalExpense / (members.length || 1)).toFixed(1) }}</p></div><div v-if="settlements.length > 0" class="space-y-3"><div v-for="(s, idx) in settlements" :key="idx" class="flex items-center justify-between p-3 border border-gray-100 rounded-xl shadow-sm"><div class="flex items-center gap-2"><span class="font-bold text-red-500">{{ s.from }}</span><i class="fa-solid fa-arrow-right text-gray-300 text-xs"></i><span class="font-bold text-green-500">{{ s.to }}</span></div><span class="font-mono font-bold bg-gray-100 px-2 py-1 rounded">฿{{ Math.round(s.amount) }}</span></div></div><div v-else class="text-center py-6 text-green-600 font-bold"><p>帳目已平衡！</p></div></div></div>
 
     </div>
 
@@ -310,12 +300,12 @@
                 const isCloudMode = ref(false);
                 const tripId = ref('');
                 const inputTripId = ref('');
+                const statusMsg = ref('就緒');
                 
                 // Config Handling
                 const showConfigModal = ref(false);
                 const configInput = ref('');
                 const hasCustomConfig = ref(false);
-                const saveError = ref(null);
 
                 let tripDocRef = null;
                 let unsubscribeSnapshot = null;
@@ -334,7 +324,7 @@
                         { id: 103, time: '15:30', title: 'Chef Ple 芒果糯米飯', location: 'Chef Ple Thai Mango Sticky Rice', desc: '在 Times Square Building 旁。可外帶回飯店吃。', transport: '步行/TukTuk' },
                         { id: 104, time: '17:30', title: 'EmSphere 商場晚餐', location: 'EmSphere', thaiAddr: '628 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย', desc: '餐廳：Kub Kao Kub Pla (吃飯吃魚)。環境舒適，口味適合全家。', transport: 'Grab/包車', tags: ['晚餐'] }
                     ]},
-                    // ... (其他天數保持原樣，為節省空間省略，實際執行時請保留)
+                    // ... (other days omitted)
                 ];
                 
                 const defaultMichelin = [
@@ -352,14 +342,12 @@
                 const initializeFirebase = async () => {
                     let firebaseConfig;
                     
-                    // 1. Internal Environment (AI Preview)
                     if (typeof __firebase_config !== 'undefined') {
                         firebaseConfig = JSON.parse(__firebase_config);
                         appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                         isInternalEnv = true;
                         hasCustomConfig.value = true;
                     } 
-                    // 2. User Custom Config (LocalStorage)
                     else {
                         const localConfig = localStorage.getItem('custom_firebase_config');
                         if (localConfig) {
@@ -370,7 +358,6 @@
                         }
                     }
 
-                    // 3. No Config? DON'T CRASH. Just don't init Firebase.
                     if (firebaseConfig) {
                         try {
                             app = initializeApp(firebaseConfig);
@@ -379,6 +366,7 @@
 
                             onAuthStateChanged(auth, async (user) => {
                                 currentUser.value = user;
+                                authUid.value = user ? user.uid : '';
                                 if (user) {
                                     const savedTripId = localStorage.getItem('tripId');
                                     if (savedTripId) await connectToTrip(savedTripId, false);
@@ -393,10 +381,8 @@
                             }
                         } catch (e) {
                             console.error("Firebase Init Error:", e);
-                            // Fallback to offline silently
                         }
                     } else {
-                        // Explicitly nullify to prevent usage
                         db = null;
                     }
                 };
@@ -414,11 +400,10 @@
 
                 onMounted(() => {
                     initializeFirebase();
-                    // Load local data immediately to show UI
                     const localTripId = localStorage.getItem('tripId');
                     if (localTripId && localStorage.getItem('tripDays_v2')) {
                         tripId.value = localTripId;
-                        initOffline(); // Pre-load offline data if available
+                        initOffline(); 
                     }
                 });
 
@@ -427,6 +412,7 @@
                     localStorage.setItem('appMode', 'offline');
                     loadFromLocalStorage();
                     hasInitialized.value = true;
+                    statusMsg.value = "單機模式";
                 };
 
                 const loadFromLocalStorage = () => {
@@ -441,13 +427,11 @@
                 };
 
                 const startApp = () => {
-                    // Force start in offline mode
                     const newId = inputTripId.value || 'MY_TRIP';
                     tripId.value = newId;
                     initOffline();
                 }
 
-                // Cloud connection (only if db exists)
                 const connectToCloud = async () => {
                     if (!db) {
                         showConfigModal.value = true;
@@ -457,29 +441,10 @@
                     await connectToTrip(targetId, true);
                 }
 
-                const createCloudTrip = async () => {
-                    if (!db) return startApp(); // Fallback to offline
-                    let idToUse = inputTripId.value;
-                    if (!idToUse) {
-                        const userCustomName = prompt("請輸入旅程名稱 (例如: FWD_BKK_TRIP)。", "");
-                        if (userCustomName) idToUse = userCustomName;
-                    }
-                    const newId = (idToUse || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
-                    await connectToTrip(newId, true);
-                };
-
-                const joinCloudTrip = async (id = null) => {
-                    if (!db) return alert("請先設定資料庫或使用單機模式");
-                    const targetId = id || inputTripId.value.toUpperCase();
-                    if(!targetId) return alert("請輸入代碼");
-                    await connectToTrip(targetId, false);
-                };
-
                 const getTripDocRef = (id) => {
                     if (isInternalEnv) {
                         return doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
                     } else {
-                        // Standard root path
                         return doc(db, 'trips', id);
                     }
                 };
@@ -507,10 +472,14 @@
                         unsubscribeSnapshot = onSnapshot(tripDocRef, (docSnap) => {
                             if (docSnap.exists()) {
                                 const data = docSnap.data();
+                                // 如果雲端為空，不要覆蓋本地
+                                if (!data.expenses && expenses.value.length > 0) return;
+                                
                                 if (data.tripDays) tripDays.value = data.tripDays;
                                 if (data.expenses) expenses.value = data.expenses;
                                 if (data.members) members.value = data.members;
                                 if (data.customFoodSpots) customFoodSpots.value = data.customFoodSpots;
+                                statusMsg.value = "已從雲端同步";
                             }
                             isLoading.value = false;
                             hasInitialized.value = true;
@@ -520,14 +489,14 @@
                         }, (error) => {
                              console.error("Snapshot error:", error);
                              isLoading.value = false;
-                             // Fallback to offline silently
+                             statusMsg.value = "雲端讀取失敗，已轉單機";
                              initOffline();
                         });
 
                     } catch (e) {
                         console.error(e);
-                        // Fallback to offline
                         isLoading.value = false;
+                        statusMsg.value = "連線失敗，已轉單機";
                         initOffline();
                     }
                 };
@@ -538,8 +507,18 @@
                     }));
                 };
 
-                const saveData = async () => {
+                // Explicit Save Logic (No Auto-Watch)
+                const syncToCloud = async () => {
+                    // Always save local first
+                    localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
+                    localStorage.setItem('expenses', JSON.stringify(expenses.value));
+                    localStorage.setItem('members', JSON.stringify(members.value));
+                    localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
+                    statusMsg.value = "已儲存至手機";
+
+                    // Try Cloud sync
                     if (isCloudMode.value && tripDocRef) {
+                        statusMsg.value = "正在上傳雲端...";
                         const dataToSave = sanitize({
                             tripDays: tripDays.value,
                             expenses: expenses.value,
@@ -549,28 +528,16 @@
                         
                         try {
                             await setDoc(tripDocRef, dataToSave, { merge: true });
-                            saveError.value = null; // Clear error on success
+                            statusMsg.value = "雲端同步完成";
                         } catch (e) {
                             console.error("Cloud save error", e);
-                            saveError.value = e.message;
-                            
-                            // CRITICAL: If write fails (likely permission), fallback to offline IMMEDIATELY
-                            // to prevent local data from being reverted by snapshot listener
-                            if (e.code === 'permission-denied') {
-                                isCloudMode.value = false;
-                                alert("⚠️ 權限不足，已自動切換為「單機模式」。\n\n您的資料現在只會存在這台裝置上，不會遺失。\n\n若要開啟雲端同步，請到 Firebase Console 修改 Rules 為 `allow read, write: if true;`");
-                            }
+                            statusMsg.value = "上傳失敗 (權限/網路)";
                         }
-                    } 
-                    
-                    // Always save to local storage as backup
-                    localStorage.setItem('tripDays_v2', JSON.stringify(tripDays.value));
-                    localStorage.setItem('expenses', JSON.stringify(expenses.value));
-                    localStorage.setItem('members', JSON.stringify(members.value));
-                    localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
+                    }
                 };
 
-                watch([tripDays, expenses, members, customFoodSpots], saveData, { deep: true });
+                // Watch for changes but use explicit sync function
+                watch([tripDays, expenses, members, customFoodSpots], syncToCloud, { deep: true });
 
                 const activeFoodCategory = ref('全區');
                 const foodCategories = ['全區', 'Siam', 'Sukhumvit', 'Old Town', 'Silom'];
@@ -651,13 +618,12 @@
                 };
                 
                 const saveExpense = () => { 
-                    // Fixed: Allow 0 but not empty string
                     if (formExpense.value.amount === '') return alert("請輸入金額");
                     try {
                         const newExpense = {
                             id: Date.now(), 
                             title: formExpense.value.title || '一般消費',
-                            amount: Number(formExpense.value.amount),
+                            amount: Number(formExpense.value.amount) || 0,
                             payer: formExpense.value.payer || members.value[0]
                         };
                         expenses.value.unshift(newExpense); 
@@ -670,9 +636,9 @@
                 const deleteExpense = (id) => { if(confirm('刪除?')) expenses.value = expenses.value.filter(e=>e.id!==id); };
                 
                 const settlements = computed(() => {
-                    if (members.value.length === 0) return [];
+                    if (members.value.length === 0 || expenses.value.length === 0) return [];
                     const balances = {}; members.value.forEach(m => balances[m] = 0);
-                    const split = totalExpense.value / members.value.length;
+                    const split = totalExpense.value / (members.value.length || 1);
                     expenses.value.forEach(e => { if(balances[e.payer]!==undefined) balances[e.payer]+=e.amount; });
                     let debtors=[], creditors=[];
                     for(const m in balances) { const net=balances[m]-split; if(net<-0.1) debtors.push({name:m, amt:Math.abs(net)}); else if(net>0.1) creditors.push({name:m, amt:net}); }
@@ -711,7 +677,7 @@
                     showSettings, members, newMemberName, addMember, removeMember, resetAllData,
                     showSettlementModal, settlements, getPaidAmount, showThaiAddrModal, thaiAddrContent, showThaiAddress, openMap,
                     calcTHB, calcHKD, currentRate, updateFromTHB, updateFromHKD,
-                    showConfigModal, configInput, hasCustomConfig, saveCustomConfig, saveError
+                    showConfigModal, configInput, hasCustomConfig, saveCustomConfig, statusMsg
                 };
             }
         }).mount('#app');
