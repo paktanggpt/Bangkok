@@ -14,7 +14,6 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Markdown Parser for AI responses -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -48,7 +47,6 @@
         .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-        /* Markdown Styles */
         .prose p { margin-bottom: 0.5em; }
         .prose ul { list-style-type: disc; padding-left: 1.2em; margin-bottom: 0.5em; }
         .prose strong { color: #FF8C00; font-weight: 700; }
@@ -373,13 +371,6 @@
         <div v-if="showFoodModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">新增美食</h3><div class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar"><input v-model="formFood.name" placeholder="名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formFood.engName" placeholder="Google Maps 英文名" class="w-full bg-gray-100 rounded-xl px-4 py-3"><select v-model="formFood.category" class="w-full bg-gray-100 rounded-xl px-4 py-3"><option v-for="c in foodCategories" :value="c">{{ c }}</option></select><input v-model="formFood.mustEat" placeholder="必吃" class="w-full bg-gray-100 rounded-xl px-4 py-3"></div><div class="flex gap-3 mt-6"><button @click="showFoodModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveFood" class="flex-1 py-3 bg-michelin text-white rounded-xl font-bold shadow-lg">加入</button></div></div></div>
         <div v-if="showExpenseModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">記一筆</h3><div class="space-y-4"><input v-model="formExpense.title" placeholder="項目" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model.number="formExpense.amount" type="number" placeholder="金額 (THB)" class="w-full bg-gray-100 rounded-xl px-4 py-3 font-mono text-lg"><div class="flex flex-wrap gap-2"><button v-for="m in members" :key="m" @click="formExpense.payer = m" class="px-4 py-2 rounded-lg text-sm font-bold border transition" :class="formExpense.payer === m ? 'bg-secondary text-white' : 'bg-white text-gray-500'">{{ m }}</button></div></div><div class="flex gap-3 mt-6"><button @click="showExpenseModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveExpense" class="flex-1 py-3 bg-secondary text-white rounded-xl font-bold shadow-lg">新增</button></div></div></div>
         <div v-if="showThaiAddrModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center"><div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fa-solid fa-taxi"></i></div><h3 class="text-lg font-bold text-gray-500 mb-2">請司機去這裡</h3><h2 class="text-2xl font-bold text-gray-900 mb-6 leading-relaxed select-all">{{ thaiAddrContent }}</h2><button @click="showThaiAddrModal = false" class="w-full py-3 rounded-xl bg-gray-800 text-white font-bold">關閉</button></div></div>
-
-        <!-- Bottom Navigation -->
-        <nav v-if="hasInitialized" class="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3 pb-safe z-30 shrink-0 sticky bottom-0 w-full">
-            <button @click="currentTab = 'itinerary'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400'"><i class="fa-solid fa-map-location-dot text-xl"></i><span class="text-xs font-medium">行程</span></button>
-            <button @click="currentTab = 'food'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'food' ? 'text-michelin' : 'text-gray-400'"><i class="fa-solid fa-utensils text-xl"></i><span class="text-xs font-medium">美食</span></button>
-            <button @click="currentTab = 'expense'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'expense' ? 'text-secondary' : 'text-gray-400'"><i class="fa-solid fa-coins text-xl"></i><span class="text-xs font-medium">分帳</span></button>
-        </nav>
 
     </div>
 
@@ -770,6 +761,23 @@
                 }
                 function editItem(item) { isEditing.value = true; editingId.value = item.id; formItinerary.value = {...item}; showItineraryModal.value = true; }
                 function deleteItinerary() { const day = tripDays.value[activeDayIndex.value]; day.items = day.items.filter(i => i.id !== editingId.value); showItineraryModal.value = false; }
+                
+                // --- MAP LINK FIX ---
+                function openMap(loc) {
+                    // For maximum compatibility on mobile devices
+                    const query = encodeURIComponent(loc + ', Bangkok');
+                    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+                    
+                    // Create a temporary anchor element to force new tab behavior which usually triggers app intent
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.target = '_blank';
+                    a.rel = 'noopener noreferrer';
+                    document.body.appendChild(a); // Append to body to ensure it's part of the DOM
+                    a.click();
+                    document.body.removeChild(a); // Clean up
+                }
+
                 function openFoodModal() { formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; showFoodModal.value = true; }
                 function saveFood() { 
                     const newFood = { id: Date.now(), isCustom:true, name: formFood.value.name || '餐廳', engName: formFood.value.engName||'', category: formFood.value.category||'Siam', mustEat: formFood.value.mustEat||'', price: formFood.value.price||'฿' };
@@ -824,7 +832,7 @@
 
                     initOffline, joinCloudTrip, startApp, addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
                     openFoodModal, saveFood, deleteCustomFood, openExpenseModal, saveExpense, deleteExpense,
-                    addMember, removeMember, resetAllData, showThaiAddress, updateFromTHB, updateFromHKD, shareTrip
+                    addMember, removeMember, resetAllData, showThaiAddress, updateFromTHB, updateFromHKD, shareTrip, openMap
                 };
             }
         }).mount('#app');
