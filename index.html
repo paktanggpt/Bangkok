@@ -14,6 +14,8 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Markdown Parser for AI responses -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -42,6 +44,14 @@
         
         .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
         .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(20px); }
+        
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+        /* Markdown Styles */
+        .prose p { margin-bottom: 0.5em; }
+        .prose ul { list-style-type: disc; padding-left: 1.2em; margin-bottom: 0.5em; }
+        .prose strong { color: #FF8C00; font-weight: 700; }
     </style>
     <script>
         tailwind.config = {
@@ -55,13 +65,27 @@
 
     <div id="app" v-cloak class="flex flex-col relative max-w-md mx-auto bg-white shadow-2xl h-full">
         
-        <!-- Debug/Status Bar -->
-        <div class="fixed bottom-0 left-0 right-0 bg-gray-900 text-white text-[10px] p-1 px-2 z-[100] flex justify-between items-center opacity-80 pb-safe">
-            <span>{{ statusMsg }}</span>
-            <span :class="isCloudMode ? 'text-green-400' : 'text-gray-400'">
-                <i class="fa-solid fa-circle text-[6px]"></i> {{ isCloudMode ? 'Cloud' : 'Local' }}
-            </span>
-        </div>
+        <!-- Sync Status Bar (Top Overlay) -->
+        <transition name="fade">
+            <div v-if="statusMsg && statusMsg !== '就緒'" class="fixed top-0 left-0 right-0 z-50 bg-black/70 text-white text-xs py-1 px-3 text-center backdrop-blur-sm">
+                <i class="fa-solid fa-rotate fa-spin mr-1" v-if="statusMsg.includes('中')"></i>
+                <i class="fa-solid fa-check mr-1 text-green-400" v-if="statusMsg.includes('完成')"></i>
+                {{ statusMsg }}
+            </div>
+        </transition>
+        
+        <!-- Error Toast -->
+        <transition name="toast">
+            <div v-if="errorMsg" class="fixed top-10 left-4 right-4 bg-red-600 text-white p-4 rounded-xl shadow-2xl z-[100] flex items-start gap-3">
+                <i class="fa-solid fa-circle-exclamation mt-1"></i>
+                <div class="flex-1 text-xs">
+                    <h4 class="font-bold text-sm mb-1">系統提示</h4>
+                    <p>{{ errorMsg }}</p>
+                    <p v-if="errorHelp" class="mt-2 font-mono bg-red-700 p-1 rounded">{{ errorHelp }}</p>
+                </div>
+                <button @click="errorMsg = null" class="text-white opacity-70"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </transition>
 
         <!-- Header -->
         <header class="bg-white px-5 pt-10 pb-4 shadow-sm z-10 flex justify-between items-center sticky top-0 shrink-0">
@@ -69,13 +93,24 @@
                 <h1 class="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
                     <span class="text-primary">Sawadee</span> Bangkok 🇹🇭
                 </h1>
-                <p class="text-xs text-gray-500 font-medium mt-1">
-                    {{ tripId ? '旅程: ' + tripId : '親子尊享之旅' }}
+                <p class="text-xs text-gray-500 font-medium mt-1 flex items-center gap-2">
+                    <span v-if="tripId" class="bg-gray-100 px-2 py-0.5 rounded text-gray-600 select-all font-mono">{{ tripId }}</span>
+                    <span v-else>請建立旅程</span>
+                    
+                    <span v-if="isCloudMode" class="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full flex items-center">
+                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span> 線上
+                    </span>
+                    <span v-else class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">單機</span>
                 </p>
             </div>
-            <button @click="showSettings = true" class="text-gray-400 hover:text-primary transition relative">
-                <i class="fa-solid fa-gear text-lg"></i>
-            </button>
+            <div class="flex gap-2">
+                <button @click="showAIModal = true" class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 text-white shadow-md flex items-center justify-center hover:scale-110 transition relative">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </button>
+                <button @click="showSettings = true" class="text-gray-400 hover:text-primary transition">
+                    <i class="fa-solid fa-gear text-lg"></i>
+                </button>
+            </div>
         </header>
 
         <!-- Main Content Area -->
@@ -83,23 +118,35 @@
             
             <!-- Setup Screen -->
             <div v-if="!hasInitialized" class="flex flex-col items-center justify-center h-full text-center space-y-6">
-                <div class="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center text-primary text-3xl mb-2">
+                <div class="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center text-primary text-3xl mb-2 animate-bounce">
                     <i class="fa-solid fa-plane-departure"></i>
                 </div>
                 <h2 class="text-xl font-bold">歡迎使用曼谷旅遊助手</h2>
                 
                 <div class="w-full space-y-3 px-4">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-blue-100 space-y-4">
+                        <h3 class="font-bold text-blue-600 text-sm"><i class="fa-solid fa-users mr-1"></i> 多人同步模式</h3>
+                        <p class="text-xs text-gray-500 text-left">請輸入一個大家都能記住的代碼，例如 "FAMILY2025"。</p>
+                        
                         <div>
-                            <label class="block text-xs text-gray-400 mb-1 text-left ml-1">給您的旅程取個名字</label>
-                            <input v-model="inputTripId" type="text" placeholder="例如: MY_BKK_TRIP" class="w-full bg-gray-100 px-4 py-3 rounded-xl text-base font-bold text-center uppercase tracking-wide outline-none focus:ring-2 focus:ring-blue-500">
+                            <input v-model="inputTripId" type="text" placeholder="請輸入旅程代碼 (英文)" class="w-full bg-gray-100 px-4 py-3 rounded-xl text-lg font-bold text-center uppercase tracking-wide outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-300">
                         </div>
 
-                        <button @click="startApp" class="w-full py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-orange-600 transition">
-                            開始規劃
+                        <button @click="joinCloudTrip()" class="w-full py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:bg-orange-600 transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-cloud" v-if="!isLoading"></i>
+                            <div v-else class="loader"></div>
+                            {{ isLoading ? '連線中...' : '加入 / 建立旅程' }}
                         </button>
                         
-                        <p class="text-xs text-center text-gray-400 mt-2">將自動連線至您的資料庫</p>
+                        <p class="text-[10px] text-gray-400 mt-2">
+                            <i class="fa-solid fa-server"></i> 自動連線至 bangkok-trip-app
+                        </p>
+
+                         <div class="text-center pt-2 border-t border-gray-100 mt-2">
+                             <button @click="startApp" class="text-xs text-gray-400 underline">
+                                暫不連線，使用單機版
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -218,23 +265,73 @@
             </div>
         </main>
 
-        <!-- Floating Action Button -->
-        <button v-if="hasInitialized && currentTab === 'itinerary'" @click="openItineraryModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-orange-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-50"><i class="fa-solid fa-plus"></i></button>
-        <button v-if="hasInitialized && currentTab === 'food'" @click="openFoodModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-michelin text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-50"><i class="fa-solid fa-plus"></i></button>
+        <!-- AI Modal -->
+        <div v-if="showAIModal" class="fixed inset-0 bg-black/60 z-[80] flex items-end sm:items-center justify-center backdrop-blur-sm p-0 sm:p-4">
+            <div class="bg-white w-full h-[90vh] sm:h-[80vh] sm:max-w-md rounded-t-3xl sm:rounded-3xl p-0 shadow-2xl flex flex-col overflow-hidden relative animate-slide-up">
+                
+                <!-- AI Header -->
+                <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-4 flex justify-between items-center shrink-0">
+                    <h3 class="text-white font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> AI 隨身導遊
+                    </h3>
+                    <button @click="showAIModal = false" class="text-white/80 hover:text-white bg-white/20 rounded-full w-8 h-8 flex items-center justify-center">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
 
-        <!-- Bottom Navigation -->
-        <nav v-if="hasInitialized" class="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3 pb-safe z-30 shrink-0 sticky bottom-0 w-full">
-            <button @click="currentTab = 'itinerary'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400'"><i class="fa-solid fa-map-location-dot text-xl"></i><span class="text-xs font-medium">行程</span></button>
-            <button @click="currentTab = 'food'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'food' ? 'text-michelin' : 'text-gray-400'"><i class="fa-solid fa-utensils text-xl"></i><span class="text-xs font-medium">美食</span></button>
-            <button @click="currentTab = 'expense'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'expense' ? 'text-secondary' : 'text-gray-400'"><i class="fa-solid fa-coins text-xl"></i><span class="text-xs font-medium">分帳</span></button>
-        </nav>
+                <!-- Chat Area -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" id="ai-chat-box">
+                    <div v-if="aiMessages.length === 0" class="text-center py-8 text-gray-400">
+                        <div class="text-4xl mb-2">🤖</div>
+                        <p class="text-sm">我是您的曼谷旅遊助手<br>可以問我任何問題！</p>
+                        
+                        <div class="grid grid-cols-2 gap-2 mt-6 px-4">
+                            <button @click="triggerAIAction('translate')" class="p-3 bg-white border border-blue-100 rounded-xl text-xs text-blue-600 font-bold shadow-sm hover:bg-blue-50">
+                                🇹🇭 幫我翻譯成泰文
+                            </button>
+                            <button @click="triggerAIAction('optimize')" class="p-3 bg-white border border-orange-100 rounded-xl text-xs text-orange-600 font-bold shadow-sm hover:bg-orange-50">
+                                🗺️ 幫我檢查行程
+                            </button>
+                             <button @click="triggerAIAction('food')" class="p-3 bg-white border border-red-100 rounded-xl text-xs text-red-600 font-bold shadow-sm hover:bg-red-50">
+                                🍽️ 推薦附近美食
+                            </button>
+                             <button @click="triggerAIAction('weather')" class="p-3 bg-white border border-green-100 rounded-xl text-xs text-green-600 font-bold shadow-sm hover:bg-green-50">
+                                🌤️ 天氣與穿著
+                            </button>
+                        </div>
+                    </div>
 
-        <!-- MODALS -->
-        <div v-if="showItineraryModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">{{ isEditing ? '編輯行程' : '新增行程' }}</h3><div class="space-y-4"><input v-model="formItinerary.time" type="time" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.title" type="text" placeholder="活動名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.location" type="text" placeholder="地點" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.transport" type="text" placeholder="交通" class="w-full bg-gray-100 rounded-xl px-4 py-3"><textarea v-model="formItinerary.desc" rows="3" placeholder="備註/泰文地址" class="w-full bg-gray-100 rounded-xl px-4 py-3 text-sm"></textarea></div><div class="flex gap-3 mt-6"><button @click="showItineraryModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button v-if="isEditing" @click="deleteItinerary" class="px-4 py-3 bg-red-50 text-red-500 rounded-xl font-bold"><i class="fa-solid fa-trash"></i></button><button @click="saveItinerary" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg">儲存</button></div></div></div>
-        <div v-if="showFoodModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">新增美食</h3><div class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar"><input v-model="formFood.name" placeholder="名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formFood.engName" placeholder="Google Maps 英文名" class="w-full bg-gray-100 rounded-xl px-4 py-3"><select v-model="formFood.category" class="w-full bg-gray-100 rounded-xl px-4 py-3"><option v-for="c in foodCategories" :value="c">{{ c }}</option></select><input v-model="formFood.mustEat" placeholder="必吃" class="w-full bg-gray-100 rounded-xl px-4 py-3"></div><div class="flex gap-3 mt-6"><button @click="showFoodModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveFood" class="flex-1 py-3 bg-michelin text-white rounded-xl font-bold shadow-lg">加入</button></div></div></div>
-        <div v-if="showExpenseModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">記一筆</h3><div class="space-y-4"><input v-model="formExpense.title" placeholder="項目" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model.number="formExpense.amount" type="number" placeholder="金額 (THB)" class="w-full bg-gray-100 rounded-xl px-4 py-3 font-mono text-lg"><div class="flex flex-wrap gap-2"><button v-for="m in members" :key="m" @click="formExpense.payer = m" class="px-4 py-2 rounded-lg text-sm font-bold border transition" :class="formExpense.payer === m ? 'bg-secondary text-white' : 'bg-white text-gray-500'">{{ m }}</button></div></div><div class="flex gap-3 mt-6"><button @click="showExpenseModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveExpense" class="flex-1 py-3 bg-secondary text-white rounded-xl font-bold shadow-lg">新增</button></div></div></div>
-        <div v-if="showThaiAddrModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center"><div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fa-solid fa-taxi"></i></div><h3 class="text-lg font-bold text-gray-500 mb-2">請司機去這裡</h3><h2 class="text-2xl font-bold text-gray-900 mb-6 leading-relaxed select-all">{{ thaiAddrContent }}</h2><button @click="showThaiAddrModal = false" class="w-full py-3 rounded-xl bg-gray-800 text-white font-bold">關閉</button></div></div>
-        
+                    <div v-for="(msg, idx) in aiMessages" :key="idx" class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
+                         <div class="max-w-[85%] p-3 rounded-2xl text-sm shadow-sm prose prose-sm" 
+                              :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'"
+                              v-html="renderMarkdown(msg.text)">
+                         </div>
+                         <span class="text-[10px] text-gray-400 mt-1 px-1">{{ msg.role === 'user' ? '你' : 'AI 導遊' }}</span>
+                    </div>
+
+                    <div v-if="isAILoading" class="flex justify-start">
+                        <div class="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm">
+                            <div class="flex gap-1">
+                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="p-3 bg-white border-t border-gray-100 shrink-0">
+                    <div class="flex gap-2">
+                        <input v-model="aiInput" @keyup.enter="sendMessage" type="text" placeholder="輸入問題..." class="flex-1 bg-gray-100 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                        <button @click="sendMessage" :disabled="isAILoading || !aiInput.trim()" class="w-12 bg-blue-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-gray-400">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Settings Modal -->
         <div v-if="showSettings" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4">
             <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl overflow-y-auto max-h-[85vh]">
@@ -244,6 +341,7 @@
                     <p class="text-xs text-green-700 font-bold mb-1"><i class="fa-solid fa-cloud-check mr-1"></i> 已連線至雲端</p>
                     <p class="text-[10px] text-gray-500 mb-1">旅程代碼: <span class="font-mono bg-white px-1 border rounded select-all">{{ tripId }}</span></p>
                     <p class="text-[10px] text-gray-400">UID: {{ authUid || '未登入' }}</p>
+                    <button @click="shareTrip" class="mt-2 w-full py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100"><i class="fa-solid fa-share-nodes"></i> 分享代碼給旅伴</button>
                 </div>
                 <div v-else class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
                     <p class="text-xs text-gray-600 font-bold mb-1">使用單機模式</p>
@@ -266,17 +364,34 @@
         <!-- Settlement Modal -->
         <div v-if="showSettlementModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto"><div class="flex justify-between items-center mb-4"><h3 class="text-xl font-bold">結算建議</h3><button @click="showSettlementModal = false" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"><i class="fa-solid fa-xmark"></i></button></div><div class="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 mb-4"><p class="font-bold mb-1">總花費: ฿{{ totalExpense }}</p><p>平均每人: ฿{{ (totalExpense / (members.length || 1)).toFixed(1) }}</p></div><div v-if="settlements.length > 0" class="space-y-3"><div v-for="(s, idx) in settlements" :key="idx" class="flex items-center justify-between p-3 border border-gray-100 rounded-xl shadow-sm"><div class="flex items-center gap-2"><span class="font-bold text-red-500">{{ s.from }}</span><i class="fa-solid fa-arrow-right text-gray-300 text-xs"></i><span class="font-bold text-green-500">{{ s.to }}</span></div><span class="font-mono font-bold bg-gray-100 px-2 py-1 rounded">฿{{ Math.round(s.amount) }}</span></div></div><div v-else class="text-center py-6 text-green-600 font-bold"><p>帳目已平衡！</p></div></div></div>
 
+        <!-- Floating Action Button -->
+        <button v-if="hasInitialized && currentTab === 'itinerary'" @click="openItineraryModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-orange-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-40"><i class="fa-solid fa-plus"></i></button>
+        <button v-if="hasInitialized && currentTab === 'food'" @click="openFoodModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-michelin text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-40"><i class="fa-solid fa-plus"></i></button>
+
+        <!-- MODALS -->
+        <div v-if="showItineraryModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">{{ isEditing ? '編輯行程' : '新增行程' }}</h3><div class="space-y-4"><input v-model="formItinerary.time" type="time" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.title" type="text" placeholder="活動名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.location" type="text" placeholder="地點" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.transport" type="text" placeholder="交通" class="w-full bg-gray-100 rounded-xl px-4 py-3"><textarea v-model="formItinerary.desc" rows="3" placeholder="備註/泰文地址" class="w-full bg-gray-100 rounded-xl px-4 py-3 text-sm"></textarea></div><div class="flex gap-3 mt-6"><button @click="showItineraryModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button v-if="isEditing" @click="deleteItinerary" class="px-4 py-3 bg-red-50 text-red-500 rounded-xl font-bold"><i class="fa-solid fa-trash"></i></button><button @click="saveItinerary" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg">儲存</button></div></div></div>
+        <div v-if="showFoodModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">新增美食</h3><div class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar"><input v-model="formFood.name" placeholder="名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formFood.engName" placeholder="Google Maps 英文名" class="w-full bg-gray-100 rounded-xl px-4 py-3"><select v-model="formFood.category" class="w-full bg-gray-100 rounded-xl px-4 py-3"><option v-for="c in foodCategories" :value="c">{{ c }}</option></select><input v-model="formFood.mustEat" placeholder="必吃" class="w-full bg-gray-100 rounded-xl px-4 py-3"></div><div class="flex gap-3 mt-6"><button @click="showFoodModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveFood" class="flex-1 py-3 bg-michelin text-white rounded-xl font-bold shadow-lg">加入</button></div></div></div>
+        <div v-if="showExpenseModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">記一筆</h3><div class="space-y-4"><input v-model="formExpense.title" placeholder="項目" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model.number="formExpense.amount" type="number" placeholder="金額 (THB)" class="w-full bg-gray-100 rounded-xl px-4 py-3 font-mono text-lg"><div class="flex flex-wrap gap-2"><button v-for="m in members" :key="m" @click="formExpense.payer = m" class="px-4 py-2 rounded-lg text-sm font-bold border transition" :class="formExpense.payer === m ? 'bg-secondary text-white' : 'bg-white text-gray-500'">{{ m }}</button></div></div><div class="flex gap-3 mt-6"><button @click="showExpenseModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveExpense" class="flex-1 py-3 bg-secondary text-white rounded-xl font-bold shadow-lg">新增</button></div></div></div>
+        <div v-if="showThaiAddrModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center"><div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fa-solid fa-taxi"></i></div><h3 class="text-lg font-bold text-gray-500 mb-2">請司機去這裡</h3><h2 class="text-2xl font-bold text-gray-900 mb-6 leading-relaxed select-all">{{ thaiAddrContent }}</h2><button @click="showThaiAddrModal = false" class="w-full py-3 rounded-xl bg-gray-800 text-white font-bold">關閉</button></div></div>
+
+        <!-- Bottom Navigation -->
+        <nav v-if="hasInitialized" class="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3 pb-safe z-30 shrink-0 sticky bottom-0 w-full">
+            <button @click="currentTab = 'itinerary'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400'"><i class="fa-solid fa-map-location-dot text-xl"></i><span class="text-xs font-medium">行程</span></button>
+            <button @click="currentTab = 'food'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'food' ? 'text-michelin' : 'text-gray-400'"><i class="fa-solid fa-utensils text-xl"></i><span class="text-xs font-medium">美食</span></button>
+            <button @click="currentTab = 'expense'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'expense' ? 'text-secondary' : 'text-gray-400'"><i class="fa-solid fa-coins text-xl"></i><span class="text-xs font-medium">分帳</span></button>
+        </nav>
+
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
         import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, collection } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
-        const { createApp, ref, computed, onMounted, watch } = Vue;
+        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
         createApp({
             setup() {
-                // ================== 1. CONSTANTS & REFS (DEFINED FIRST) ==================
+                // 1. CONSTANTS & REFS
                 const currentTab = ref('itinerary');
                 const hasInitialized = ref(false);
                 const isLoading = ref(false);
@@ -284,22 +399,31 @@
                 const tripId = ref('');
                 const inputTripId = ref('');
                 const statusMsg = ref('就緒');
-                
-                // Config Handling
-                const showConfigModal = ref(false);
-                const configInput = ref('');
-                const hasCustomConfig = ref(false);
+                const errorMsg = ref(null);
+                const errorHelp = ref(null);
 
-                // Firebase Internal Refs
+                // AI
+                const showAIModal = ref(false);
+                const aiInput = ref('');
+                const aiMessages = ref([]);
+                const isAILoading = ref(false);
+                const apiKey = ""; // Run-time provided
+
+                const userConfig = {
+                    apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
+                    authDomain: "bangkok-trip-app.firebaseapp.com",
+                    projectId: "bangkok-trip-app",
+                    storageBucket: "bangkok-trip-app.firebasestorage.app",
+                    messagingSenderId: "888598636200",
+                    appId: "1:888598636200:web:c1a4ecf3b54c119418049d",
+                    measurementId: "G-EWMSXN3G1H"
+                };
+
                 let tripDocRef = null;
                 let unsubscribeSnapshot = null;
                 const currentUser = ref(null);
                 const authUid = ref('');
-                
-                // Firebase variables
                 let app, auth, db;
-                let appId = 'bangkok_app';
-                let isInternalEnv = false;
 
                 // Data Defaults
                 const defaultItinerary = [
@@ -351,14 +475,14 @@
                     { name: "Baan Somtum (Sathorn)", engName: "Baan Somtum Sathorn", area: "Sathorn", category: "Silom", level: "Bib", type: "泰北菜", mustEat: "青木瓜沙拉, 炸雞翅", price: "฿฿", note: "環境舒適，冷氣強，適合家庭聚餐。" }
                 ];
 
-                // Data Reactive Refs (Must be defined before Computed)
+                // Data Refs
                 const tripDays = ref(defaultItinerary);
                 const expenses = ref([]);
                 const members = ref(['我', '家人A']);
                 const customFoodSpots = ref([]);
                 const activeDayIndex = ref(0);
 
-                // UI State Refs
+                // UI Refs
                 const showItineraryModal = ref(false);
                 const showFoodModal = ref(false);
                 const showExpenseModal = ref(false);
@@ -381,7 +505,7 @@
                 const calcHKD = ref(''); 
                 const currentRate = ref(4.4);
 
-                // ================== 2. COMPUTED PROPERTIES (DEPEND ON REFS) ==================
+                // 2. COMPUTED PROPERTIES
                 const foodSpots = computed(() => [...customFoodSpots.value, ...defaultMichelin]);
                 const filteredFoodSpots = computed(() => activeFoodCategory.value === '全區' ? foodSpots.value : foodSpots.value.filter(s => s.category === activeFoodCategory.value));
                 const totalExpense = computed(() => expenses.value.reduce((sum, i) => sum + i.amount, 0));
@@ -407,19 +531,81 @@
                 
                 const getPaidAmount = (p) => expenses.value.filter(e=>e.payer===p).reduce((s,e)=>s+e.amount,0);
 
-                // ================== 3. HELPER & LOGIC FUNCTIONS (STANDARD FUNCTION DECLARATION) ==================
+                // 3. HELPER & LOGIC
                 function getTripDocRef(id) {
-                    if (isInternalEnv) {
-                        return doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
-                    } else {
-                        return doc(db, 'trips', id);
-                    }
+                    return doc(db, 'trips', id);
                 }
 
                 function sanitize(obj) {
                     return JSON.parse(JSON.stringify(obj, (key, value) => {
                         return value === undefined ? null : value;
                     }));
+                }
+                
+                function renderMarkdown(text) {
+                    return marked.parse(text || '');
+                }
+
+                // GEMINI AI LOGIC
+                async function callGeminiAPI(prompt) {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+                    
+                    if (!response.ok) throw new Error(`Gemini Error: ${response.statusText}`);
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || '抱歉，我現在無法回答。';
+                }
+                
+                async function sendMessage() {
+                    if (!aiInput.value.trim()) return;
+                    const userText = aiInput.value;
+                    aiInput.value = '';
+                    
+                    aiMessages.value.push({ role: 'user', text: userText });
+                    isAILoading.value = true;
+                    
+                    // Scroll to bottom
+                    nextTick(() => {
+                        const chatBox = document.getElementById('ai-chat-box');
+                        if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+                    });
+
+                    try {
+                        // Contextual Prompt
+                        const itineraryContext = JSON.stringify(tripDays.value.map(d => ({ date: d.date, activities: d.items.map(i => i.title) })));
+                        const prompt = `你是一個專業的曼谷親子旅遊導遊。使用繁體中文回答。
+                        
+                        使用者的當前行程：
+                        ${itineraryContext}
+                        
+                        使用者的問題：${userText}
+                        
+                        請提供簡短、實用且適合家庭的建議。如果是泰文翻譯需求，請提供泰文原文和發音。`;
+                        
+                        const responseText = await callGeminiAPI(prompt);
+                        aiMessages.value.push({ role: 'model', text: responseText });
+                    } catch (e) {
+                        aiMessages.value.push({ role: 'model', text: "⚠️ 連線錯誤，請稍後再試。" });
+                        console.error(e);
+                    } finally {
+                        isAILoading.value = false;
+                        nextTick(() => {
+                            const chatBox = document.getElementById('ai-chat-box');
+                            if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+                        });
+                    }
+                }
+                
+                function triggerAIAction(type) {
+                    if (type === 'translate') aiInput.value = '請教我幾句在曼谷搭計程車和點餐常用的泰文，附上發音。';
+                    if (type === 'optimize') aiInput.value = '請幫我檢查目前的行程，看看有沒有路線不順路的地方，或者推薦附近適合小孩的隱藏景點。';
+                    if (type === 'food') aiInput.value = '根據我的行程位置，推薦幾家適合帶長輩小孩去的必吃餐廳，不要太辣。';
+                    if (type === 'weather') aiInput.value = '12月底去曼谷天氣如何？需要帶什麼衣服？';
+                    sendMessage();
                 }
 
                 function initOffline() {
@@ -428,6 +614,7 @@
                     loadFromLocalStorage();
                     hasInitialized.value = true;
                     statusMsg.value = "單機模式";
+                    isLoading.value = false;
                 }
 
                 function loadFromLocalStorage() {
@@ -447,24 +634,12 @@
                     initOffline();
                 }
 
-                // 內嵌你提供的設定，確保一開即用
-                const hardcodedConfig = {
-                  apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
-                  authDomain: "bangkok-trip-app.firebaseapp.com",
-                  projectId: "bangkok-trip-app",
-                  storageBucket: "bangkok-trip-app.firebasestorage.app",
-                  messagingSenderId: "888598636200",
-                  appId: "1:888598636200:web:c1a4ecf3b54c119418049d",
-                  measurementId: "G-EWMSXN3G1H"
-                };
-
                 async function connectToTrip(id, isNew) {
                     if (!db) { initOffline(); return; }
                     
                     isLoading.value = true;
                     tripId.value = id;
-                    
-                    tripDocRef = getTripDocRef(id);
+                    tripDocRef = doc(db, 'trips', id);
 
                     try {
                         if (isNew) {
@@ -473,7 +648,7 @@
                                 expenses: [],
                                 members: ['我'],
                                 customFoodSpots: []
-                            });
+                            }, { merge: true });
                         }
 
                         if (unsubscribeSnapshot) unsubscribeSnapshot();
@@ -487,7 +662,7 @@
                                 if (data.expenses) expenses.value = data.expenses;
                                 if (data.members) members.value = data.members;
                                 if (data.customFoodSpots) customFoodSpots.value = data.customFoodSpots;
-                                statusMsg.value = "已從雲端同步";
+                                statusMsg.value = "同步完成";
                             }
                             isLoading.value = false;
                             hasInitialized.value = true;
@@ -496,48 +671,29 @@
                             localStorage.setItem('tripId', id);
                         }, (error) => {
                              console.error("Snapshot error:", error);
+                             if (error.code === 'permission-denied') {
+                                 errorMsg.value = "權限被拒：請到 Firebase Console 開啟 Database Rules。";
+                                 errorHelp.value = "改為: allow read, write: if true;";
+                             }
                              isLoading.value = false;
-                             statusMsg.value = "雲端讀取失敗，已轉單機";
+                             statusMsg.value = "讀取失敗";
                              initOffline();
                         });
 
                     } catch (e) {
                         console.error(e);
                         isLoading.value = false;
-                        statusMsg.value = "連線失敗，已轉單機";
+                        statusMsg.value = "連線錯誤";
                         initOffline();
                     }
                 }
 
-                async function connectToCloud() {
-                    if (!db) {
-                        // 如果沒有 db，嘗試使用寫死的 config 初始化
-                        await initializeFirebase(hardcodedConfig);
-                    }
-                    if (db) {
-                        const targetId = tripId.value || 'MY_TRIP';
-                        await connectToTrip(targetId, true);
-                    } else {
-                        alert("無法初始化 Firebase，請檢查網路連線。");
-                    }
-                }
-
-                async function createCloudTrip() {
-                    if (!db) await initializeFirebase(hardcodedConfig);
-                    if (!db) return startApp(); 
-                    
-                    let idToUse = inputTripId.value;
-                    if (!idToUse) {
-                        const userCustomName = prompt("請輸入旅程名稱 (例如: FWD_BKK_TRIP)。", "");
-                        if (userCustomName) idToUse = userCustomName;
-                    }
-                    const newId = (idToUse || 'BANGKOK_' + Math.floor(Math.random()*10000)).toUpperCase();
-                    await connectToTrip(newId, true);
-                }
-
                 async function joinCloudTrip(id = null) {
-                    if (!db) await initializeFirebase(hardcodedConfig);
-                    if (!db) return alert("請先設定資料庫或使用單機模式");
+                    if (!db) {
+                        await initializeFirebase();
+                        if (!db) return alert("無法連線至 Firebase，請檢查網路或設定。");
+                    }
+                    
                     const targetId = id || inputTripId.value.toUpperCase();
                     if(!targetId) return alert("請輸入代碼");
                     await connectToTrip(targetId, false);
@@ -548,10 +704,10 @@
                     localStorage.setItem('expenses', JSON.stringify(expenses.value));
                     localStorage.setItem('members', JSON.stringify(members.value));
                     localStorage.setItem('customFoodSpots', JSON.stringify(customFoodSpots.value));
-                    statusMsg.value = "已儲存至手機";
+                    statusMsg.value = "已存本機";
 
                     if (isCloudMode.value && tripDocRef) {
-                        statusMsg.value = "正在上傳雲端...";
+                        statusMsg.value = "同步中...";
                         const dataToSave = sanitize({
                             tripDays: tripDays.value,
                             expenses: expenses.value,
@@ -561,98 +717,46 @@
                         
                         try {
                             await setDoc(tripDocRef, dataToSave, { merge: true });
-                            statusMsg.value = "雲端同步完成";
+                            statusMsg.value = "同步完成";
+                            errorMsg.value = null;
                         } catch (e) {
                             console.error("Cloud save error", e);
-                            statusMsg.value = "上傳失敗 (權限/網路)";
+                            if (e.code === 'permission-denied') {
+                                 errorMsg.value = "無法寫入：請到 Firebase Console 開啟 Database Rules。";
+                                 errorHelp.value = "改為: allow read, write: if true;";
+                            }
+                            statusMsg.value = "上傳失敗";
                         }
                     }
                 }
 
-                async function initializeFirebase(manualConfig = null) {
-                    let firebaseConfig = manualConfig;
-                    
-                    if (!firebaseConfig) {
-                        if (typeof __firebase_config !== 'undefined') {
-                            firebaseConfig = JSON.parse(__firebase_config);
-                            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                            isInternalEnv = true;
-                            hasCustomConfig.value = true;
-                        } 
-                        else {
-                            const localConfig = localStorage.getItem('custom_firebase_config');
-                            if (localConfig) {
-                                try {
-                                    firebaseConfig = JSON.parse(localConfig);
-                                    hasCustomConfig.value = true;
-                                } catch(e) { console.error("Invalid local config"); }
-                            } else {
-                                // 預設使用你提供的 Config
-                                firebaseConfig = hardcodedConfig;
-                            }
-                        }
-                    }
-
-                    if (firebaseConfig) {
-                        try {
-                            app = initializeApp(firebaseConfig);
-                            auth = getAuth(app);
-                            db = getFirestore(app);
-
-                            onAuthStateChanged(auth, async (user) => {
-                                currentUser.value = user;
-                                authUid.value = user ? user.uid : '';
-                                if (user) {
-                                    const savedTripId = localStorage.getItem('tripId');
-                                    if (savedTripId) await connectToTrip(savedTripId, false);
-                                }
-                            });
-
-                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                                try { await signInWithCustomToken(auth, __initial_auth_token); } 
-                                catch (e) { await signInAnonymously(auth); }
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                        } catch (e) {
-                            console.error("Firebase Init Error:", e);
-                        }
-                    } else {
-                        db = null;
-                    }
-                }
-
-                function saveCustomConfig() {
+                async function initializeFirebase() {
+                    if (db) return; 
                     try {
-                        let input = configInput.value.trim();
-                        if (!input.startsWith('"') && !input.startsWith('{')) {
-                             input = input.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
-                        }
-                        if (input.endsWith(';')) input = input.slice(0, -1);
-                        const eqIndex = input.indexOf('=');
-                        if (eqIndex > -1) input = input.substring(eqIndex + 1);
+                        app = initializeApp(userConfig);
+                        auth = getAuth(app);
+                        db = getFirestore(app);
 
-                        const conf = JSON.parse(input);
-                        localStorage.setItem('custom_firebase_config', JSON.stringify(conf));
-                        alert("設定已儲存，頁面將重新整理。");
-                        location.reload();
-                    } catch(e) {
-                        alert("設定格式錯誤，請確保是正確的 JSON 格式。\n錯誤: " + e.message);
+                        onAuthStateChanged(auth, async (user) => {
+                            currentUser.value = user;
+                            authUid.value = user ? user.uid : '';
+                            if (user) {
+                                const savedTripId = localStorage.getItem('tripId');
+                                if (savedTripId) await connectToTrip(savedTripId, false);
+                            }
+                        });
+
+                        await signInAnonymously(auth);
+                    } catch (e) {
+                        console.error("Firebase Init Error:", e);
+                        if (e.code === 'auth/operation-not-allowed') {
+                             errorMsg.value = "驗證未開啟：請到 Firebase Console -> Authentication 開啟 Anonymous 登入。";
+                        }
                     }
                 }
 
-                // ================== 4. UI ACTIONS (STANDARD FUNCTION DECLARATION) ==================
-                function addDay() { 
-                    tripDays.value.push({id: Date.now(), date: `Day ${tripDays.value.length+1}`, items:[]}); 
-                    activeDayIndex.value = tripDays.value.length-1; 
-                }
-                
-                function openItineraryModal() { 
-                    isEditing.value = false; 
-                    formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; 
-                    showItineraryModal.value = true; 
-                }
-                
+                function addDay() { tripDays.value.push({id: Date.now(), date: `Day ${tripDays.value.length+1}`, items:[]}); activeDayIndex.value = tripDays.value.length-1; }
+                function openItineraryModal() { isEditing.value = false; formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; showItineraryModal.value = true; }
                 function saveItinerary() {
                     if(!formItinerary.value.title) return;
                     if(isEditing.value) {
@@ -664,135 +768,63 @@
                     }
                     showItineraryModal.value = false;
                 }
-
-                function editItem(item) { 
-                    isEditing.value = true; 
-                    editingId.value = item.id; 
-                    formItinerary.value = {...item}; 
-                    showItineraryModal.value = true; 
-                }
-
-                function deleteItinerary() { 
-                    const day = tripDays.value[activeDayIndex.value]; 
-                    day.items = day.items.filter(i => i.id !== editingId.value); 
-                    showItineraryModal.value = false; 
-                }
-                
-                function openFoodModal() { 
-                    formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; 
-                    showFoodModal.value = true; 
-                }
-                
+                function editItem(item) { isEditing.value = true; editingId.value = item.id; formItinerary.value = {...item}; showItineraryModal.value = true; }
+                function deleteItinerary() { const day = tripDays.value[activeDayIndex.value]; day.items = day.items.filter(i => i.id !== editingId.value); showItineraryModal.value = false; }
+                function openFoodModal() { formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; showFoodModal.value = true; }
                 function saveFood() { 
-                    try {
-                         const newFood = {
-                             id: Date.now(), 
-                             isCustom:true, 
-                             name: formFood.value.name || '未命名餐廳', 
-                             engName: formFood.value.engName || '',
-                             category: formFood.value.category || 'Siam',
-                             mustEat: formFood.value.mustEat || '',
-                             price: formFood.value.price || '฿'
-                         };
-                         customFoodSpots.value.unshift(newFood); 
-                         showFoodModal.value = false; 
-                    } catch(e) {
-                        alert("新增失敗: " + e.message);
-                    }
+                    const newFood = { id: Date.now(), isCustom:true, name: formFood.value.name || '餐廳', engName: formFood.value.engName||'', category: formFood.value.category||'Siam', mustEat: formFood.value.mustEat||'', price: formFood.value.price||'฿' };
+                    customFoodSpots.value.unshift(newFood); showFoodModal.value = false; 
                 }
-                
-                function deleteCustomFood(id) { 
-                    if(confirm('刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f=>f.id!==id); 
-                }
-                
-                function openExpenseModal() { 
-                    formExpense.value = {title: '', amount: '', payer: members.value[0]}; 
-                    showExpenseModal.value = true; 
-                }
-                
+                function deleteCustomFood(id) { if(confirm('刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f=>f.id!==id); }
+                function openExpenseModal() { formExpense.value = {title: '', amount: '', payer: members.value[0]}; showExpenseModal.value = true; }
                 function saveExpense() { 
                     if (!formExpense.value.amount) return alert("請輸入金額");
-                    try {
-                        const newExpense = {
-                            id: Date.now(), 
-                            title: formExpense.value.title || '一般消費',
-                            amount: Number(formExpense.value.amount),
-                            payer: formExpense.value.payer || members.value[0]
-                        };
-                        expenses.value.unshift(newExpense); 
-                        showExpenseModal.value = false; 
-                    } catch (e) {
-                        alert("新增失敗: " + e.message);
+                    const newExpense = { id: Date.now(), title: formExpense.value.title || '消費', amount: Number(formExpense.value.amount), payer: formExpense.value.payer || members.value[0] };
+                    expenses.value.unshift(newExpense); showExpenseModal.value = false; 
+                }
+                function deleteExpense(id) { if(confirm('刪除?')) expenses.value = expenses.value.filter(e=>e.id!==id); }
+                function addMember() { if(newMemberName.value && !members.value.includes(newMemberName.value)) { members.value.push(newMemberName.value); newMemberName.value=''; } }
+                function removeMember(idx) { members.value.splice(idx,1); }
+                function resetAllData() { if(confirm('重置?')) { localStorage.clear(); location.reload(); } }
+                function showThaiAddress(item) { thaiAddrContent.value = item.thaiAddr; showThaiAddrModal.value = true; }
+                function updateFromTHB() { calcHKD.value = calcTHB.value ? (calcTHB.value/currentRate.value).toFixed(2) : ''; }
+                function updateFromHKD() { calcTHB.value = calcHKD.value ? (calcHKD.value*currentRate.value).toFixed(0) : ''; }
+
+                function shareTrip() {
+                    const text = `快來加入我的曼谷旅程！\n旅程代碼: ${tripId.value}`;
+                    if (navigator.share) {
+                        navigator.share({ title: 'Sawadee Bangkok', text: text });
+                    } else {
+                        prompt("請複製代碼分享給旅伴：", tripId.value);
                     }
                 }
-                
-                function deleteExpense(id) { 
-                    if(confirm('刪除?')) expenses.value = expenses.value.filter(e=>e.id!==id); 
-                }
-                
-                function addMember() { 
-                    if(newMemberName.value && !members.value.includes(newMemberName.value)) { 
-                        members.value.push(newMemberName.value); 
-                        newMemberName.value=''; 
-                    } 
-                }
 
-                function removeMember(idx) { 
-                    members.value.splice(idx,1); 
-                }
-                
-                function resetAllData() { 
-                    if(confirm('重置所有資料?')) { 
-                        localStorage.clear(); 
-                        location.reload(); 
-                    } 
-                }
-                
-                function showThaiAddress(item) { 
-                    thaiAddrContent.value = item.thaiAddr; 
-                    showThaiAddrModal.value = true; 
-                }
-
-                function updateFromTHB() { 
-                    calcHKD.value = calcTHB.value ? (calcTHB.value/currentRate.value).toFixed(2) : ''; 
-                }
-
-                function updateFromHKD() { 
-                    calcTHB.value = calcHKD.value ? (calcHKD.value*currentRate.value).toFixed(0) : ''; 
-                }
-
-                // ================== 5. LIFECYCLE (BOTTOM) ==================
                 onMounted(() => {
                     initializeFirebase();
                     const localTripId = localStorage.getItem('tripId');
-                    if (localTripId && localStorage.getItem('tripDays_v2')) {
+                    if (localTripId) {
                         tripId.value = localTripId;
-                        initOffline(); 
+                        loadFromLocalStorage();
+                        hasInitialized.value = true;
                     }
                 });
 
                 watch([tripDays, expenses, members, customFoodSpots], syncToCloud, { deep: true });
 
                 return {
-                    // Variables
                     currentTab, hasInitialized, isLoading, isCloudMode, tripId, inputTripId, authUid,
-                    tripDays, activeDayIndex, currentDayItems, 
-                    expenses, totalExpense, members, settlements, getPaidAmount,
+                    tripDays, activeDayIndex, currentDayItems, expenses, totalExpense, members, settlements, getPaidAmount,
                     customFoodSpots, foodSpots, filteredFoodSpots, activeFoodCategory, foodCategories,
-                    
-                    // UI State
                     showItineraryModal, showFoodModal, showExpenseModal, showSettlementModal, showSettings, showThaiAddrModal,
                     formItinerary, formFood, formExpense, isEditing, thaiAddrContent, newMemberName,
-                    calcTHB, calcHKD, currentRate, statusMsg,
-                    showConfigModal, configInput, hasCustomConfig,
+                    calcTHB, calcHKD, currentRate, statusMsg, errorMsg, errorHelp,
+                    
+                    // AI
+                    showAIModal, aiInput, aiMessages, isAILoading, sendMessage, triggerAIAction, renderMarkdown,
 
-                    // Actions
-                    initOffline, createCloudTrip, joinCloudTrip, startApp, connectToCloud, saveCustomConfig,
-                    addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
-                    openFoodModal, saveFood, deleteCustomFood,
-                    openExpenseModal, saveExpense, deleteExpense,
-                    addMember, removeMember, resetAllData, showThaiAddress,
-                    updateFromTHB, updateFromHKD
+                    initOffline, joinCloudTrip, startApp, addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
+                    openFoodModal, saveFood, deleteCustomFood, openExpenseModal, saveExpense, deleteExpense,
+                    addMember, removeMember, resetAllData, showThaiAddress, updateFromTHB, updateFromHKD, shareTrip
                 };
             }
         }).mount('#app');
