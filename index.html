@@ -65,9 +65,9 @@
         
         <!-- Sync Status Bar (Top Overlay) -->
         <transition name="fade">
-            <div v-if="statusMsg && statusMsg !== '就緒'" class="fixed top-0 left-0 right-0 z-50 bg-black/70 text-white text-xs py-1 px-3 text-center backdrop-blur-sm">
-                <i class="fa-solid fa-rotate fa-spin mr-1" v-if="statusMsg.includes('中')"></i>
-                <i class="fa-solid fa-check mr-1 text-green-400" v-if="statusMsg.includes('完成')"></i>
+            <div v-if="statusMsg && statusMsg !== '就緒'" class="fixed top-0 left-0 right-0 z-[60] bg-black/80 text-white text-xs py-1 px-3 text-center backdrop-blur-sm flex justify-center items-center gap-2">
+                <span v-if="statusMsg.includes('中')"><i class="fa-solid fa-rotate fa-spin"></i></span>
+                <span v-if="statusMsg.includes('完成')"><i class="fa-solid fa-check text-green-400"></i></span>
                 {{ statusMsg }}
             </div>
         </transition>
@@ -77,7 +77,7 @@
             <div v-if="errorMsg" class="fixed top-10 left-4 right-4 bg-red-600 text-white p-4 rounded-xl shadow-2xl z-[100] flex items-start gap-3">
                 <i class="fa-solid fa-circle-exclamation mt-1"></i>
                 <div class="flex-1 text-xs">
-                    <h4 class="font-bold text-sm mb-1">系統提示</h4>
+                    <h4 class="font-bold text-sm mb-1">連線錯誤</h4>
                     <p>{{ errorMsg }}</p>
                     <p v-if="errorHelp" class="mt-2 font-mono bg-red-700 p-1 rounded">{{ errorHelp }}</p>
                 </div>
@@ -365,6 +365,13 @@
         <!-- Floating Action Button -->
         <button v-if="hasInitialized && currentTab === 'itinerary'" @click="openItineraryModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-orange-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-40"><i class="fa-solid fa-plus"></i></button>
         <button v-if="hasInitialized && currentTab === 'food'" @click="openFoodModal()" class="fixed bottom-24 right-5 w-14 h-14 bg-michelin text-white rounded-full shadow-lg shadow-red-200 flex items-center justify-center text-2xl active:scale-90 transition transform z-40"><i class="fa-solid fa-plus"></i></button>
+
+        <!-- Bottom Navigation -->
+        <nav v-if="hasInitialized" class="bg-white border-t border-gray-100 flex justify-around items-center px-2 py-3 pb-safe z-50 shrink-0 sticky bottom-0 w-full">
+            <button @click="currentTab = 'itinerary'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'itinerary' ? 'text-primary' : 'text-gray-400'"><i class="fa-solid fa-map-location-dot text-xl"></i><span class="text-xs font-medium">行程</span></button>
+            <button @click="currentTab = 'food'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'food' ? 'text-michelin' : 'text-gray-400'"><i class="fa-solid fa-utensils text-xl"></i><span class="text-xs font-medium">美食</span></button>
+            <button @click="currentTab = 'expense'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'expense' ? 'text-secondary' : 'text-gray-400'"><i class="fa-solid fa-coins text-xl"></i><span class="text-xs font-medium">分帳</span></button>
+        </nav>
 
         <!-- MODALS -->
         <div v-if="showItineraryModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">{{ isEditing ? '編輯行程' : '新增行程' }}</h3><div class="space-y-4"><input v-model="formItinerary.time" type="time" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.title" type="text" placeholder="活動名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.location" type="text" placeholder="地點" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.transport" type="text" placeholder="交通" class="w-full bg-gray-100 rounded-xl px-4 py-3"><textarea v-model="formItinerary.desc" rows="3" placeholder="備註/泰文地址" class="w-full bg-gray-100 rounded-xl px-4 py-3 text-sm"></textarea></div><div class="flex gap-3 mt-6"><button @click="showItineraryModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button v-if="isEditing" @click="deleteItinerary" class="px-4 py-3 bg-red-50 text-red-500 rounded-xl font-bold"><i class="fa-solid fa-trash"></i></button><button @click="saveItinerary" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg">儲存</button></div></div></div>
