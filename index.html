@@ -65,9 +65,9 @@
         
         <!-- Sync Status Bar (Top Overlay) -->
         <transition name="fade">
-            <div v-if="statusMsg && statusMsg !== '就緒'" class="fixed top-0 left-0 right-0 z-[60] bg-black/80 text-white text-xs py-1 px-3 text-center backdrop-blur-sm flex justify-center items-center gap-2">
-                <span v-if="statusMsg.includes('中')"><i class="fa-solid fa-rotate fa-spin"></i></span>
-                <span v-if="statusMsg.includes('完成')"><i class="fa-solid fa-check text-green-400"></i></span>
+            <div v-if="statusMsg && statusMsg !== '就緒'" class="fixed top-0 left-0 right-0 z-50 bg-black/70 text-white text-xs py-1 px-3 text-center backdrop-blur-sm">
+                <i class="fa-solid fa-rotate fa-spin mr-1" v-if="statusMsg.includes('中')"></i>
+                <i class="fa-solid fa-check mr-1 text-green-400" v-if="statusMsg.includes('完成')"></i>
                 {{ statusMsg }}
             </div>
         </transition>
@@ -77,7 +77,7 @@
             <div v-if="errorMsg" class="fixed top-10 left-4 right-4 bg-red-600 text-white p-4 rounded-xl shadow-2xl z-[100] flex items-start gap-3">
                 <i class="fa-solid fa-circle-exclamation mt-1"></i>
                 <div class="flex-1 text-xs">
-                    <h4 class="font-bold text-sm mb-1">連線錯誤</h4>
+                    <h4 class="font-bold text-sm mb-1">提示</h4>
                     <p>{{ errorMsg }}</p>
                     <p v-if="errorHelp" class="mt-2 font-mono bg-red-700 p-1 rounded">{{ errorHelp }}</p>
                 </div>
@@ -102,7 +102,7 @@
                 </p>
             </div>
             <div class="flex gap-2">
-                <button @click="showAIModal = true" class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 text-white shadow-md flex items-center justify-center hover:scale-110 transition relative">
+                <button @click="openAI" class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 text-white shadow-md flex items-center justify-center hover:scale-110 transition relative">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
                 </button>
                 <button @click="showSettings = true" class="text-gray-400 hover:text-primary transition">
@@ -153,14 +153,9 @@
             <div v-else>
                 <!-- ITINERARY TAB -->
                 <div v-if="currentTab === 'itinerary'" class="space-y-4">
-                    <div class="rounded-2xl overflow-hidden shadow-md mb-4 border border-gray-100 relative h-40 bg-gray-200">
-                        <img src="https://images.unsplash.com/photo-1508009603885-50cf7c579365?q=80&w=1000&auto=format&fit=crop" alt="Bangkok" class="w-full h-full object-cover block">
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-4">
-                            <span class="text-white font-bold text-lg">Bangkok City of Angels</span>
-                        </div>
-                    </div>
-
-                    <div class="flex space-x-3 overflow-x-auto no-scrollbar pb-2">
+                    
+                    <!-- Day Selector -->
+                    <div class="flex space-x-3 overflow-x-auto no-scrollbar pb-2 pt-2">
                         <button v-for="(day, index) in tripDays" :key="index" @click="activeDayIndex = index" class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all transform active:scale-95 shadow-sm flex flex-col items-center min-w-[80px]" :class="activeDayIndex === index ? 'bg-primary text-white shadow-md' : 'bg-white text-gray-500 border border-gray-100'"><span>Day {{ index + 1 }}</span><span class="text-[10px] font-normal opacity-80">{{ day.date }}</span></button>
                         <button @click="addDay" class="flex-shrink-0 px-3 py-2 rounded-full text-sm bg-gray-200 text-gray-600"><i class="fa-solid fa-plus"></i></button>
                     </div>
@@ -279,47 +274,60 @@
 
                 <!-- Chat Area -->
                 <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50" id="ai-chat-box">
-                    <div v-if="aiMessages.length === 0" class="text-center py-8 text-gray-400">
-                        <div class="text-4xl mb-2">🤖</div>
-                        <p class="text-sm">我是您的曼谷旅遊助手<br>可以問我任何問題！</p>
+                    <div v-if="!hasGeminiKey" class="text-center py-10 px-4">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🔑</div>
+                        <h3 class="font-bold text-gray-800 mb-2">啟用 AI 助手</h3>
+                        <p class="text-sm text-gray-500 mb-6">請輸入您的 Google Gemini API Key 以啟用此功能。</p>
                         
-                        <div class="grid grid-cols-2 gap-2 mt-6 px-4">
-                            <button @click="triggerAIAction('translate')" class="p-3 bg-white border border-blue-100 rounded-xl text-xs text-blue-600 font-bold shadow-sm hover:bg-blue-50">
-                                🇹🇭 幫我翻譯成泰文
-                            </button>
-                            <button @click="triggerAIAction('optimize')" class="p-3 bg-white border border-orange-100 rounded-xl text-xs text-orange-600 font-bold shadow-sm hover:bg-orange-50">
-                                🗺️ 幫我檢查行程
-                            </button>
-                             <button @click="triggerAIAction('food')" class="p-3 bg-white border border-red-100 rounded-xl text-xs text-red-600 font-bold shadow-sm hover:bg-red-50">
-                                🍽️ 推薦附近美食
-                            </button>
-                             <button @click="triggerAIAction('weather')" class="p-3 bg-white border border-green-100 rounded-xl text-xs text-green-600 font-bold shadow-sm hover:bg-green-50">
-                                🌤️ 天氣與穿著
-                            </button>
+                        <input v-model="tempApiKey" type="password" placeholder="貼上 API Key" class="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 mb-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        
+                        <button @click="saveGeminiKey" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700">啟用</button>
+                        
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="block mt-4 text-xs text-blue-500 underline">沒有 Key？點此免費申請</a>
+                    </div>
+
+                    <div v-else>
+                         <div v-if="aiMessages.length === 0" class="text-center py-8 text-gray-400">
+                            <div class="text-4xl mb-2">🤖</div>
+                            <p class="text-sm">我是您的曼谷旅遊助手<br>可以問我任何問題！</p>
+                            
+                            <div class="grid grid-cols-2 gap-2 mt-6 px-4">
+                                <button @click="triggerAIAction('translate')" class="p-3 bg-white border border-blue-100 rounded-xl text-xs text-blue-600 font-bold shadow-sm hover:bg-blue-50">
+                                    🇹🇭 翻譯成泰文
+                                </button>
+                                <button @click="triggerAIAction('optimize')" class="p-3 bg-white border border-orange-100 rounded-xl text-xs text-orange-600 font-bold shadow-sm hover:bg-orange-50">
+                                    🗺️ 檢查行程
+                                </button>
+                                 <button @click="triggerAIAction('food')" class="p-3 bg-white border border-red-100 rounded-xl text-xs text-red-600 font-bold shadow-sm hover:bg-red-50">
+                                    🍽️ 推薦美食
+                                </button>
+                                 <button @click="triggerAIAction('weather')" class="p-3 bg-white border border-green-100 rounded-xl text-xs text-green-600 font-bold shadow-sm hover:bg-green-50">
+                                    🌤️ 天氣建議
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <div v-for="(msg, idx) in aiMessages" :key="idx" class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
-                         <div class="max-w-[85%] p-3 rounded-2xl text-sm shadow-sm prose prose-sm" 
-                              :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'"
-                              v-html="renderMarkdown(msg.text)">
-                         </div>
-                         <span class="text-[10px] text-gray-400 mt-1 px-1">{{ msg.role === 'user' ? '你' : 'AI 導遊' }}</span>
-                    </div>
+                        <div v-for="(msg, idx) in aiMessages" :key="idx" class="flex flex-col mb-3" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
+                             <div class="max-w-[85%] p-3 rounded-2xl text-sm shadow-sm prose prose-sm" 
+                                  :class="msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'"
+                                  v-html="renderMarkdown(msg.text)">
+                             </div>
+                        </div>
 
-                    <div v-if="isAILoading" class="flex justify-start">
-                        <div class="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm">
-                            <div class="flex gap-1">
-                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        <div v-if="isAILoading" class="flex justify-start">
+                            <div class="bg-white p-3 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm">
+                                <div class="flex gap-1">
+                                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Input Area -->
-                <div class="p-3 bg-white border-t border-gray-100 shrink-0">
+                <div class="p-3 bg-white border-t border-gray-100 shrink-0" v-if="hasGeminiKey">
                     <div class="flex gap-2">
                         <input v-model="aiInput" @keyup.enter="sendMessage" type="text" placeholder="輸入問題..." class="flex-1 bg-gray-100 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                         <button @click="sendMessage" :disabled="isAILoading || !aiInput.trim()" class="w-12 bg-blue-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-gray-400">
@@ -344,6 +352,15 @@
                 <div v-else class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
                     <p class="text-xs text-gray-600 font-bold mb-1">使用單機模式</p>
                     <p class="text-[10px] text-gray-400">資料僅存在此裝置</p>
+                </div>
+                
+                <div class="mb-4">
+                     <label class="block text-xs font-bold text-gray-500 mb-2">Gemini API Key</label>
+                     <div class="flex gap-2">
+                        <input v-model="tempApiKey" type="password" placeholder="未設定" class="flex-1 bg-gray-100 rounded-xl px-4 py-2 text-xs outline-none" :disabled="hasGeminiKey">
+                        <button v-if="hasGeminiKey" @click="clearGeminiKey" class="px-3 bg-red-100 text-red-500 rounded-xl font-bold text-xs">重設</button>
+                        <button v-else @click="saveGeminiKey" class="px-3 bg-blue-600 text-white rounded-xl font-bold text-xs">儲存</button>
+                     </div>
                 </div>
 
                 <div class="mb-4">
@@ -373,12 +390,6 @@
             <button @click="currentTab = 'expense'" class="flex-1 flex flex-col items-center gap-1 p-2 rounded-xl transition" :class="currentTab === 'expense' ? 'text-secondary' : 'text-gray-400'"><i class="fa-solid fa-coins text-xl"></i><span class="text-xs font-medium">分帳</span></button>
         </nav>
 
-        <!-- MODALS -->
-        <div v-if="showItineraryModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">{{ isEditing ? '編輯行程' : '新增行程' }}</h3><div class="space-y-4"><input v-model="formItinerary.time" type="time" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.title" type="text" placeholder="活動名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.location" type="text" placeholder="地點" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formItinerary.transport" type="text" placeholder="交通" class="w-full bg-gray-100 rounded-xl px-4 py-3"><textarea v-model="formItinerary.desc" rows="3" placeholder="備註/泰文地址" class="w-full bg-gray-100 rounded-xl px-4 py-3 text-sm"></textarea></div><div class="flex gap-3 mt-6"><button @click="showItineraryModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button v-if="isEditing" @click="deleteItinerary" class="px-4 py-3 bg-red-50 text-red-500 rounded-xl font-bold"><i class="fa-solid fa-trash"></i></button><button @click="saveItinerary" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg">儲存</button></div></div></div>
-        <div v-if="showFoodModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">新增美食</h3><div class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar"><input v-model="formFood.name" placeholder="名稱" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model="formFood.engName" placeholder="Google Maps 英文名" class="w-full bg-gray-100 rounded-xl px-4 py-3"><select v-model="formFood.category" class="w-full bg-gray-100 rounded-xl px-4 py-3"><option v-for="c in foodCategories" :value="c">{{ c }}</option></select><input v-model="formFood.mustEat" placeholder="必吃" class="w-full bg-gray-100 rounded-xl px-4 py-3"></div><div class="flex gap-3 mt-6"><button @click="showFoodModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveFood" class="flex-1 py-3 bg-michelin text-white rounded-xl font-bold shadow-lg">加入</button></div></div></div>
-        <div v-if="showExpenseModal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-4"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-slide-up"><h3 class="text-xl font-bold mb-4">記一筆</h3><div class="space-y-4"><input v-model="formExpense.title" placeholder="項目" class="w-full bg-gray-100 rounded-xl px-4 py-3"><input v-model.number="formExpense.amount" type="number" placeholder="金額 (THB)" class="w-full bg-gray-100 rounded-xl px-4 py-3 font-mono text-lg"><div class="flex flex-wrap gap-2"><button v-for="m in members" :key="m" @click="formExpense.payer = m" class="px-4 py-2 rounded-lg text-sm font-bold border transition" :class="formExpense.payer === m ? 'bg-secondary text-white' : 'bg-white text-gray-500'">{{ m }}</button></div></div><div class="flex gap-3 mt-6"><button @click="showExpenseModal = false" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600">取消</button><button @click="saveExpense" class="flex-1 py-3 bg-secondary text-white rounded-xl font-bold shadow-lg">新增</button></div></div></div>
-        <div v-if="showThaiAddrModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 backdrop-blur-sm"><div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center"><div class="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fa-solid fa-taxi"></i></div><h3 class="text-lg font-bold text-gray-500 mb-2">請司機去這裡</h3><h2 class="text-2xl font-bold text-gray-900 mb-6 leading-relaxed select-all">{{ thaiAddrContent }}</h2><button @click="showThaiAddrModal = false" class="w-full py-3 rounded-xl bg-gray-800 text-white font-bold">關閉</button></div></div>
-
     </div>
 
     <script type="module">
@@ -405,8 +416,10 @@
                 const aiInput = ref('');
                 const aiMessages = ref([]);
                 const isAILoading = ref(false);
-                const apiKey = ""; // Run-time provided
+                const hasGeminiKey = ref(false);
+                const tempApiKey = ref('');
 
+                // Firebase Config (YOUR CONFIG)
                 const userConfig = {
                     apiKey: "AIzaSyDX9-UT3PvUHth46bJqOQ3F6gtE6-qW7-w",
                     authDomain: "bangkok-trip-app.firebaseapp.com",
@@ -544,9 +557,35 @@
                     return marked.parse(text || '');
                 }
 
-                // GEMINI AI LOGIC
+                // AI LOGIC
+                function openAI() {
+                     showAIModal.value = true;
+                     const storedKey = localStorage.getItem('gemini_api_key');
+                     if (storedKey) {
+                         hasGeminiKey.value = true;
+                         tempApiKey.value = storedKey;
+                     } else {
+                         hasGeminiKey.value = false;
+                     }
+                }
+
+                function saveGeminiKey() {
+                    if (!tempApiKey.value.trim()) return;
+                    localStorage.setItem('gemini_api_key', tempApiKey.value.trim());
+                    hasGeminiKey.value = true;
+                }
+
+                function clearGeminiKey() {
+                    localStorage.removeItem('gemini_api_key');
+                    tempApiKey.value = '';
+                    hasGeminiKey.value = false;
+                }
+
                 async function callGeminiAPI(prompt) {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                    const apiKey = localStorage.getItem('gemini_api_key');
+                    if (!apiKey) throw new Error("Missing API Key");
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -566,29 +605,22 @@
                     aiMessages.value.push({ role: 'user', text: userText });
                     isAILoading.value = true;
                     
-                    // Scroll to bottom
                     nextTick(() => {
                         const chatBox = document.getElementById('ai-chat-box');
                         if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
                     });
 
                     try {
-                        // Contextual Prompt
                         const itineraryContext = JSON.stringify(tripDays.value.map(d => ({ date: d.date, activities: d.items.map(i => i.title) })));
                         const prompt = `你是一個專業的曼谷親子旅遊導遊。使用繁體中文回答。
-                        
-                        使用者的當前行程：
-                        ${itineraryContext}
-                        
+                        使用者的當前行程：${itineraryContext}
                         使用者的問題：${userText}
-                        
                         請提供簡短、實用且適合家庭的建議。如果是泰文翻譯需求，請提供泰文原文和發音。`;
                         
                         const responseText = await callGeminiAPI(prompt);
                         aiMessages.value.push({ role: 'model', text: responseText });
                     } catch (e) {
-                        aiMessages.value.push({ role: 'model', text: "⚠️ 連線錯誤，請稍後再試。" });
-                        console.error(e);
+                        aiMessages.value.push({ role: 'model', text: `⚠️ 錯誤: ${e.message}` });
                     } finally {
                         isAILoading.value = false;
                         nextTick(() => {
@@ -749,6 +781,7 @@
                         console.error("Firebase Init Error:", e);
                         if (e.code === 'auth/operation-not-allowed') {
                              errorMsg.value = "驗證未開啟：請到 Firebase Console -> Authentication 開啟 Anonymous 登入。";
+                             errorHelp.value = "Authentication > Sign-in method > Anonymous > Enable";
                         }
                     }
                 }
@@ -771,18 +804,15 @@
                 
                 // --- MAP LINK FIX ---
                 function openMap(loc) {
-                    // For maximum compatibility on mobile devices
                     const query = encodeURIComponent(loc + ', Bangkok');
                     const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
-                    
-                    // Create a temporary anchor element to force new tab behavior which usually triggers app intent
                     const a = document.createElement('a');
                     a.href = url;
                     a.target = '_blank';
                     a.rel = 'noopener noreferrer';
-                    document.body.appendChild(a); // Append to body to ensure it's part of the DOM
+                    document.body.appendChild(a); 
                     a.click();
-                    document.body.removeChild(a); // Clean up
+                    document.body.removeChild(a);
                 }
 
                 function openFoodModal() { formFood.value = {name: '', engName: '', category: 'Siam', mustEat: '', price:'฿'}; showFoodModal.value = true; }
@@ -835,7 +865,8 @@
                     calcTHB, calcHKD, currentRate, statusMsg, errorMsg, errorHelp,
                     
                     // AI
-                    showAIModal, aiInput, aiMessages, isAILoading, sendMessage, triggerAIAction, renderMarkdown,
+                    showAIModal, aiInput, aiMessages, isAILoading, hasGeminiKey, tempApiKey,
+                    sendMessage, triggerAIAction, renderMarkdown, openAI, saveGeminiKey, clearGeminiKey,
 
                     initOffline, joinCloudTrip, startApp, addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
                     openFoodModal, saveFood, deleteCustomFood, openExpenseModal, saveExpense, deleteExpense,
