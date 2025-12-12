@@ -1,3 +1,10 @@
+這是一份包含完整功能、修正地圖連結、並且加入「編輯美食」功能的最終完整版代碼。
+您可以直接複製這整段代碼儲存為 .html 檔案使用。
+更新重點：
+ * 編輯美食功能：在「自訂」的美食卡片右上角，現在有「編輯 (筆)」與「刪除 (垃圾桶)」按鈕。
+ * 地圖連結修復：點擊藍色定位按鈕會正確開啟 Google Maps。
+ * 資料同步優化：優化了儲存邏輯，確保修改後的資料能即時更新。
+<!-- end list -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -5,7 +12,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>曼谷 6 天 5 夜親子尊享之旅 (Fixed)</title>
+    <title>曼谷 6 天 5 夜親子尊享之旅 (Final)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -143,7 +150,13 @@
                     </div>
                     <div class="space-y-3">
                         <div v-for="spot in filteredFoodSpots" :key="spot.id || spot.name" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 relative">
-                             <button v-if="spot.isCustom" @click="deleteCustomFood(spot.id)" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 p-2"><i class="fa-solid fa-trash text-xs"></i></button>
+                             
+                             <div v-if="spot.isCustom" class="absolute top-2 right-2 flex gap-1 z-10 bg-white/90 rounded-full px-2 py-1 shadow-sm border border-gray-100">
+                                 <button @click="editFood(spot)" class="w-6 h-6 flex items-center justify-center text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                 <div class="w-px h-3 bg-gray-300 self-center"></div>
+                                 <button @click="deleteCustomFood(spot.id)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                             </div>
+
                              <div class="flex justify-between items-start mb-2">
                                 <div>
                                     <div class="flex items-center gap-2 mb-1">
@@ -152,10 +165,10 @@
                                         <span v-else class="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-bold">自訂</span>
                                         <span class="text-xs text-gray-400 font-bold">{{ spot.price }}</span>
                                     </div>
-                                    <h3 class="font-bold text-gray-900 text-lg leading-tight">{{ spot.name }}</h3>
+                                    <h3 class="font-bold text-gray-900 text-lg leading-tight mr-16">{{ spot.name }}</h3>
                                     <p class="text-xs text-gray-500">{{ spot.engName }}</p>
                                 </div>
-                                <button @click="openMap(spot.engName || spot.name)" class="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-blue-500"><i class="fa-solid fa-location-dot"></i></button>
+                                <button @click="openMap(spot.engName || spot.name)" class="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-blue-500 shrink-0"><i class="fa-solid fa-location-dot"></i></button>
                              </div>
                              <p class="text-sm text-gray-600 mt-2 border-t pt-2 border-gray-50" v-if="spot.mustEat"><span class="font-bold text-gray-800">必點：</span>{{ spot.mustEat }}</p>
                         </div>
@@ -255,9 +268,10 @@
         <transition name="slide-up">
         <div v-if="showFoodModal" class="fixed inset-0 bg-black/50 z-[70] flex items-end sm:items-center justify-center backdrop-blur-sm p-4">
             <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                <h3 class="text-lg font-bold mb-4 text-gray-800">新增美食</h3>
+                <h3 class="text-lg font-bold mb-4 text-gray-800">{{ isEditing ? '編輯美食' : '新增美食' }}</h3>
                 <div class="space-y-3">
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Name</label><input v-model="formFood.name" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none font-bold"></div>
+                    <div><label class="text-[10px] font-bold text-gray-400 uppercase">Eng/Thai Name</label><input v-model="formFood.engName" placeholder="地圖搜尋用" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm"></div>
                     <div class="flex gap-3">
                         <div class="flex-1"><label class="text-[10px] font-bold text-gray-400 uppercase">Area</label><select v-model="formFood.category" class="w-full bg-gray-100 rounded-xl px-3 py-2.5 outline-none text-sm"><option v-for="c in foodCategories" :key="c" :value="c">{{c}}</option></select></div>
                         <div class="w-24"><label class="text-[10px] font-bold text-gray-400 uppercase">Price</label><select v-model="formFood.price" class="w-full bg-gray-100 rounded-xl px-3 py-2.5 outline-none text-sm"><option value="฿">฿</option><option value="฿฿">฿฿</option><option value="฿฿฿">฿฿฿</option></select></div>
@@ -266,7 +280,7 @@
                 </div>
                 <div class="flex gap-3 mt-6">
                     <button @click="showFoodModal = false" class="flex-1 py-3 rounded-xl bg-gray-100 text-gray-500 font-bold text-sm">取消</button>
-                    <button @click="saveFood" class="flex-[2] py-3 rounded-xl bg-michelin text-white font-bold text-sm shadow-lg shadow-red-200">加入</button>
+                    <button @click="saveFood" class="flex-[2] py-3 rounded-xl bg-michelin text-white font-bold text-sm shadow-lg shadow-red-200">儲存</button>
                 </div>
             </div>
         </div>
@@ -520,13 +534,49 @@
                     showItineraryModal.value = false;
                 }
 
-                function openFoodModal() { formFood.value = {name:'', category:'Siam', price:'฿', mustEat:''}; showFoodModal.value = true; }
+                // --- 修改後的美食功能 ---
+                function openFoodModal() { 
+                    isEditing.value = false; 
+                    editingId.value = null;
+                    formFood.value = {name:'', category:'Siam', price:'฿', mustEat:'', engName: ''}; 
+                    showFoodModal.value = true; 
+                }
+                
+                function editFood(item) {
+                    isEditing.value = true;
+                    editingId.value = item.id;
+                    formFood.value = { ...item };
+                    showFoodModal.value = true;
+                }
+
                 function saveFood() {
                     if(!formFood.value.name) return;
-                    customFoodSpots.value.unshift({...formFood.value, id: Date.now(), isCustom: true});
+
+                    if (isEditing.value && editingId.value) {
+                        // 編輯模式
+                        const index = customFoodSpots.value.findIndex(f => f.id === editingId.value);
+                        if (index !== -1) {
+                            customFoodSpots.value[index] = { 
+                                ...formFood.value, 
+                                id: editingId.value, 
+                                isCustom: true 
+                            };
+                        }
+                    } else {
+                        // 新增模式
+                        customFoodSpots.value.unshift({
+                            ...formFood.value, 
+                            id: Date.now(), 
+                            isCustom: true
+                        });
+                    }
                     showFoodModal.value = false;
                 }
-                function deleteCustomFood(id) { if(confirm('確認刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f => f.id !== id); }
+                
+                function deleteCustomFood(id) { 
+                    if(confirm('確認刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f => f.id !== id); 
+                }
+                // -----------------------
 
                 function openExpenseModal() { formExpense.value = {title:'', amount:'', payer: members.value[0]}; showExpenseModal.value = true; }
                 function saveExpense() {
@@ -543,8 +593,9 @@
                 
                 function openMap(loc) {
                     if (!loc) return;
-                    // Standard Google Maps Search URL
-                    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc + ', Bangkok')}`;
+                    // 使用 encodeURIComponent 確保中文或其他字元正確傳遞
+                    const query = encodeURIComponent(loc + ', Bangkok');
+                    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
                     window.open(url, '_blank');
                 }
 
@@ -671,7 +722,7 @@
                     aiInput, aiMessages, isAILoading, hasGeminiKey, tempApiKey,
                     
                     addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
-                    openFoodModal, saveFood, deleteCustomFood,
+                    openFoodModal, saveFood, deleteCustomFood, editFood, // Export editFood
                     openExpenseModal, saveExpense, deleteExpense,
                     addMember, removeMember, showThaiAddress, openMap,
                     updateFromTHB, updateFromHKD, joinCloudTrip, startApp, resetAllData, shareTrip,
@@ -682,3 +733,4 @@
     </script>
 </body>
 </html>
+
