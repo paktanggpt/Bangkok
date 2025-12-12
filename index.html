@@ -1,3 +1,10 @@
+這是一份包含完整功能、修正地圖連結、並且加入「編輯美食」功能的最終完整版代碼。
+您可以直接複製這整段代碼儲存為 .html 檔案使用。
+更新重點：
+ * 編輯美食功能：在「自訂」的美食卡片右上角，現在有「編輯 (筆)」與「刪除 (垃圾桶)」按鈕。
+ * 地圖連結修復：點擊藍色定位按鈕會正確開啟 Google Maps。
+ * 資料同步優化：優化了儲存邏輯，確保修改後的資料能即時更新。
+<!-- end list -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -5,7 +12,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>曼谷 6 天 5 夜親子尊享之旅 (Final v2)</title>
+    <title>曼谷 6 天 5 夜親子尊享之旅 (Final)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -244,20 +251,9 @@
                     </div>
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Location (Eng)</label><input v-model="formItinerary.location" placeholder="Google Maps 搜尋用" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm"></div>
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Thai Address</label><input v-model="formItinerary.thaiAddr" placeholder="給司機看的泰文" class="w-full bg-orange-50 text-orange-800 border border-orange-100 rounded-xl px-4 py-2.5 outline-none text-sm"></div>
-                    
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Transport</label>
-                        <div class="flex flex-wrap gap-2 mb-2">
-                            <button v-for="t in ['Grab/包車', 'BTS/MRT', '步行', '船', 'TukTuk']" 
-                                    @click="formItinerary.transport = t"
-                                    class="px-2 py-1 rounded-md text-[10px] border border-gray-200 bg-gray-50 text-gray-500 hover:bg-primary hover:text-white transition-colors"
-                                    :class="formItinerary.transport === t ? 'bg-primary text-white border-primary' : ''">
-                                {{ t }}
-                            </button>
-                        </div>
-                        <input v-model="formItinerary.transport" type="text" placeholder="或自行輸入..." class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm">
+                    <div><label class="text-[10px] font-bold text-gray-400 uppercase">Transport</label>
+                        <select v-model="formItinerary.transport" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm appearance-none"><option value="">無</option><option value="Grab/包車">Grab / 包車</option><option value="BTS/MRT">BTS / MRT</option><option value="步行">步行</option></select>
                     </div>
-
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Note</label><textarea v-model="formItinerary.desc" rows="2" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm resize-none"></textarea></div>
                 </div>
                 <div class="flex gap-3 mt-6">
@@ -538,7 +534,7 @@
                     showItineraryModal.value = false;
                 }
 
-                // Food
+                // --- 修改後的美食功能 ---
                 function openFoodModal() { 
                     isEditing.value = false; 
                     editingId.value = null;
@@ -580,8 +576,8 @@
                 function deleteCustomFood(id) { 
                     if(confirm('確認刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f => f.id !== id); 
                 }
-                
-                // Expense
+                // -----------------------
+
                 function openExpenseModal() { formExpense.value = {title:'', amount:'', payer: members.value[0]}; showExpenseModal.value = true; }
                 function saveExpense() {
                     if(!formExpense.value.amount) return;
@@ -597,6 +593,7 @@
                 
                 function openMap(loc) {
                     if (!loc) return;
+                    // 使用 encodeURIComponent 確保中文或其他字元正確傳遞
                     const query = encodeURIComponent(loc + ', Bangkok');
                     const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
                     window.open(url, '_blank');
@@ -725,7 +722,7 @@
                     aiInput, aiMessages, isAILoading, hasGeminiKey, tempApiKey,
                     
                     addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
-                    openFoodModal, saveFood, deleteCustomFood, editFood, 
+                    openFoodModal, saveFood, deleteCustomFood, editFood, // Export editFood
                     openExpenseModal, saveExpense, deleteExpense,
                     addMember, removeMember, showThaiAddress, openMap,
                     updateFromTHB, updateFromHKD, joinCloudTrip, startApp, resetAllData, shareTrip,
@@ -736,3 +733,4 @@
     </script>
 </body>
 </html>
+
