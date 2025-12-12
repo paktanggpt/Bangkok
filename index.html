@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>曼谷 6 天 5 夜親子尊享之旅 (Fixed Layout)</title>
+    <title>曼谷 6 天 5 夜親子尊享之旅 (Fixed Layout v2)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -152,22 +152,22 @@
                                         <span v-else class="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-bold">自訂</span>
                                         <span class="text-xs text-gray-400 font-bold">{{ spot.price }}</span>
                                     </div>
-                                    <h3 class="font-bold text-gray-900 text-lg leading-tight">{{ spot.name }}</h3>
-                                    <p class="text-xs text-gray-500">{{ spot.engName }}</p>
+                                    <h3 class="font-bold text-gray-900 text-lg leading-tight break-words">{{ spot.name }}</h3>
+                                    <p class="text-xs text-gray-500 mt-1">{{ spot.engName }}</p>
                                 </div>
                                 
                                 <div class="flex items-center gap-2 shrink-0">
-                                    <div v-if="spot.isCustom" class="flex bg-gray-100 rounded-lg p-1 border border-gray-200">
-                                        <button @click="editFood(spot)" class="w-6 h-6 flex items-center justify-center text-blue-400 hover:text-blue-600 active:scale-90 transition"><i class="fa-solid fa-pen text-[10px]"></i></button>
-                                        <div class="w-px h-3 bg-gray-300 self-center mx-0.5"></div>
-                                        <button @click="deleteCustomFood(spot.id)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 active:scale-90 transition"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                                    <div v-if="spot.isCustom" class="flex bg-gray-50 rounded-lg p-1 border border-gray-100">
+                                        <button @click="editFood(spot)" class="w-7 h-7 flex items-center justify-center text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                        <div class="w-px h-3 bg-gray-200 self-center mx-0.5"></div>
+                                        <button @click="deleteCustomFood(spot.id)" class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition"><i class="fa-solid fa-trash text-[10px]"></i></button>
                                     </div>
                                     
-                                    <button @click="openMap(spot.engName || spot.name)" class="w-9 h-9 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center hover:bg-blue-100 active:scale-90 transition"><i class="fa-solid fa-location-dot"></i></button>
+                                    <button @click="openMap(spot.engName || spot.name)" class="w-9 h-9 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center hover:bg-blue-100 active:scale-95 transition shadow-sm"><i class="fa-solid fa-location-dot"></i></button>
                                 </div>
                              </div>
 
-                             <p class="text-sm text-gray-600 mt-2 border-t pt-2 border-gray-50" v-if="spot.mustEat"><span class="font-bold text-gray-800">必點：</span>{{ spot.mustEat }}</p>
+                             <p class="text-sm text-gray-600 mt-2 border-t pt-2 border-gray-50 leading-relaxed" v-if="spot.mustEat"><span class="font-bold text-gray-800">必點：</span>{{ spot.mustEat }}</p>
                         </div>
                     </div>
                 </div>
