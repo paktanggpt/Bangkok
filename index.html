@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>曼谷 6 天 5 夜親子尊享之旅 (Final)</title>
+    <title>曼谷 6 天 5 夜親子尊享之旅 (Final v2)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -244,9 +244,20 @@
                     </div>
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Location (Eng)</label><input v-model="formItinerary.location" placeholder="Google Maps 搜尋用" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm"></div>
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Thai Address</label><input v-model="formItinerary.thaiAddr" placeholder="給司機看的泰文" class="w-full bg-orange-50 text-orange-800 border border-orange-100 rounded-xl px-4 py-2.5 outline-none text-sm"></div>
-                    <div><label class="text-[10px] font-bold text-gray-400 uppercase">Transport</label>
-                        <select v-model="formItinerary.transport" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm appearance-none"><option value="">無</option><option value="Grab/包車">Grab / 包車</option><option value="BTS/MRT">BTS / MRT</option><option value="步行">步行</option></select>
+                    
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Transport</label>
+                        <div class="flex flex-wrap gap-2 mb-2">
+                            <button v-for="t in ['Grab/包車', 'BTS/MRT', '步行', '船', 'TukTuk']" 
+                                    @click="formItinerary.transport = t"
+                                    class="px-2 py-1 rounded-md text-[10px] border border-gray-200 bg-gray-50 text-gray-500 hover:bg-primary hover:text-white transition-colors"
+                                    :class="formItinerary.transport === t ? 'bg-primary text-white border-primary' : ''">
+                                {{ t }}
+                            </button>
+                        </div>
+                        <input v-model="formItinerary.transport" type="text" placeholder="或自行輸入..." class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm">
                     </div>
+
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Note</label><textarea v-model="formItinerary.desc" rows="2" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm resize-none"></textarea></div>
                 </div>
                 <div class="flex gap-3 mt-6">
@@ -527,7 +538,7 @@
                     showItineraryModal.value = false;
                 }
 
-                // --- 修改後的美食功能 ---
+                // Food
                 function openFoodModal() { 
                     isEditing.value = false; 
                     editingId.value = null;
@@ -569,8 +580,8 @@
                 function deleteCustomFood(id) { 
                     if(confirm('確認刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f => f.id !== id); 
                 }
-                // -----------------------
-
+                
+                // Expense
                 function openExpenseModal() { formExpense.value = {title:'', amount:'', payer: members.value[0]}; showExpenseModal.value = true; }
                 function saveExpense() {
                     if(!formExpense.value.amount) return;
@@ -586,7 +597,6 @@
                 
                 function openMap(loc) {
                     if (!loc) return;
-                    // 使用 encodeURIComponent 確保中文或其他字元正確傳遞
                     const query = encodeURIComponent(loc + ', Bangkok');
                     const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
                     window.open(url, '_blank');
@@ -715,7 +725,7 @@
                     aiInput, aiMessages, isAILoading, hasGeminiKey, tempApiKey,
                     
                     addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
-                    openFoodModal, saveFood, deleteCustomFood, editFood, // Export editFood
+                    openFoodModal, saveFood, deleteCustomFood, editFood, 
                     openExpenseModal, saveExpense, deleteExpense,
                     addMember, removeMember, showThaiAddress, openMap,
                     updateFromTHB, updateFromHKD, joinCloudTrip, startApp, resetAllData, shareTrip,
@@ -726,4 +736,3 @@
     </script>
 </body>
 </html>
-
