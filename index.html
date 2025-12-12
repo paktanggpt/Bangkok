@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>曼谷 6 天 5 夜親子尊享之旅 (Final)</title>
+    <title>曼谷 6 天 5 夜親子尊享之旅 (Fixed Layout)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -144,25 +144,29 @@
                     <div class="space-y-3">
                         <div v-for="spot in filteredFoodSpots" :key="spot.id || spot.name" class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 relative">
                              
-                             <div v-if="spot.isCustom" class="absolute top-2 right-2 flex gap-1 z-10 bg-white/90 rounded-full px-2 py-1 shadow-sm border border-gray-100">
-                                 <button @click="editFood(spot)" class="w-6 h-6 flex items-center justify-center text-blue-400 hover:text-blue-600"><i class="fa-solid fa-pen text-[10px]"></i></button>
-                                 <div class="w-px h-3 bg-gray-300 self-center"></div>
-                                 <button @click="deleteCustomFood(spot.id)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500"><i class="fa-solid fa-trash text-[10px]"></i></button>
-                             </div>
-
                              <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <div class="flex items-center gap-2 mb-1">
+                                <div class="flex-1 pr-2">
+                                    <div class="flex items-center gap-2 mb-1 flex-wrap">
                                         <span v-if="spot.level === '1 Star'" class="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded text-[10px] font-bold">★ 一星</span>
                                         <span v-else-if="spot.level === 'Bib'" class="bg-red-50 text-michelin px-1.5 py-0.5 rounded text-[10px] font-bold">必比登</span>
                                         <span v-else class="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded text-[10px] font-bold">自訂</span>
                                         <span class="text-xs text-gray-400 font-bold">{{ spot.price }}</span>
                                     </div>
-                                    <h3 class="font-bold text-gray-900 text-lg leading-tight mr-16">{{ spot.name }}</h3>
+                                    <h3 class="font-bold text-gray-900 text-lg leading-tight">{{ spot.name }}</h3>
                                     <p class="text-xs text-gray-500">{{ spot.engName }}</p>
                                 </div>
-                                <button @click="openMap(spot.engName || spot.name)" class="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-blue-500 shrink-0"><i class="fa-solid fa-location-dot"></i></button>
+                                
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <div v-if="spot.isCustom" class="flex bg-gray-100 rounded-lg p-1 border border-gray-200">
+                                        <button @click="editFood(spot)" class="w-6 h-6 flex items-center justify-center text-blue-400 hover:text-blue-600 active:scale-90 transition"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                                        <div class="w-px h-3 bg-gray-300 self-center mx-0.5"></div>
+                                        <button @click="deleteCustomFood(spot.id)" class="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-500 active:scale-90 transition"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                                    </div>
+                                    
+                                    <button @click="openMap(spot.engName || spot.name)" class="w-9 h-9 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center hover:bg-blue-100 active:scale-90 transition"><i class="fa-solid fa-location-dot"></i></button>
+                                </div>
                              </div>
+
                              <p class="text-sm text-gray-600 mt-2 border-t pt-2 border-gray-50" v-if="spot.mustEat"><span class="font-bold text-gray-800">必點：</span>{{ spot.mustEat }}</p>
                         </div>
                     </div>
@@ -244,9 +248,21 @@
                     </div>
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Location (Eng)</label><input v-model="formItinerary.location" placeholder="Google Maps 搜尋用" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm"></div>
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Thai Address</label><input v-model="formItinerary.thaiAddr" placeholder="給司機看的泰文" class="w-full bg-orange-50 text-orange-800 border border-orange-100 rounded-xl px-4 py-2.5 outline-none text-sm"></div>
-                    <div><label class="text-[10px] font-bold text-gray-400 uppercase">Transport</label>
-                        <select v-model="formItinerary.transport" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm appearance-none"><option value="">無</option><option value="Grab/包車">Grab / 包車</option><option value="BTS/MRT">BTS / MRT</option><option value="步行">步行</option></select>
+                    
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Transport (可選或自填)</label>
+                        <div class="flex flex-wrap gap-2 mb-2">
+                            <button v-for="t in ['Grab/包車', 'BTS/MRT', '船', '步行', 'TukTuk']" 
+                                    @click="formItinerary.transport = t"
+                                    class="px-2 py-1 rounded-md text-[10px] border border-gray-200 bg-gray-50 text-gray-500 hover:bg-primary hover:text-white transition-colors"
+                                    :class="formItinerary.transport === t ? 'bg-primary text-white border-primary' : ''">
+                                <i class="fa-solid fa-ship mr-1" v-if="t==='船'"></i>
+                                {{ t }}
+                            </button>
+                        </div>
+                        <input v-model="formItinerary.transport" type="text" placeholder="自行輸入交通方式..." class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm">
                     </div>
+
                     <div><label class="text-[10px] font-bold text-gray-400 uppercase">Note</label><textarea v-model="formItinerary.desc" rows="2" class="w-full bg-gray-100 rounded-xl px-4 py-2.5 outline-none text-sm resize-none"></textarea></div>
                 </div>
                 <div class="flex gap-3 mt-6">
@@ -527,7 +543,7 @@
                     showItineraryModal.value = false;
                 }
 
-                // --- 修改後的美食功能 ---
+                // Food
                 function openFoodModal() { 
                     isEditing.value = false; 
                     editingId.value = null;
@@ -569,8 +585,8 @@
                 function deleteCustomFood(id) { 
                     if(confirm('確認刪除?')) customFoodSpots.value = customFoodSpots.value.filter(f => f.id !== id); 
                 }
-                // -----------------------
-
+                
+                // Expense
                 function openExpenseModal() { formExpense.value = {title:'', amount:'', payer: members.value[0]}; showExpenseModal.value = true; }
                 function saveExpense() {
                     if(!formExpense.value.amount) return;
@@ -586,7 +602,6 @@
                 
                 function openMap(loc) {
                     if (!loc) return;
-                    // 使用 encodeURIComponent 確保中文或其他字元正確傳遞
                     const query = encodeURIComponent(loc + ', Bangkok');
                     const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
                     window.open(url, '_blank');
@@ -715,7 +730,7 @@
                     aiInput, aiMessages, isAILoading, hasGeminiKey, tempApiKey,
                     
                     addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
-                    openFoodModal, saveFood, deleteCustomFood, editFood, // Export editFood
+                    openFoodModal, saveFood, deleteCustomFood, editFood, 
                     openExpenseModal, saveExpense, deleteExpense,
                     addMember, removeMember, showThaiAddress, openMap,
                     updateFromTHB, updateFromHKD, joinCloudTrip, startApp, resetAllData, shareTrip,
@@ -726,4 +741,3 @@
     </script>
 </body>
 </html>
-
