@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>曼谷 6 天 5 夜親子尊享之旅 (Fixed Layout v2)</title>
+    <title>曼谷 6 天 5 夜親子尊享之旅 (Fixed Layout v2.1)</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -358,7 +358,7 @@
         </transition>
 
         <div v-if="showSettings" class="fixed inset-0 bg-black/50 z-[90] flex items-end sm:items-center justify-center backdrop-blur-sm p-4">
-            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl overflow-y-auto max-h-[85vh]">
                 <h3 class="text-lg font-bold mb-4">設定</h3>
                 <div class="mb-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
                     <p class="text-[10px] text-gray-400 uppercase font-bold mb-1">Trip ID</p>
@@ -367,6 +367,21 @@
                         <button @click="shareTrip" class="text-blue-500 text-xs font-bold"><i class="fa-solid fa-share-nodes"></i> 分享</button>
                     </div>
                 </div>
+
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">行程排序 (Reorder)</label>
+                    <div class="space-y-2 max-h-40 overflow-y-auto bg-gray-50 p-2 rounded-xl border border-gray-200">
+                         <div v-for="(day, idx) in tripDays" class="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
+                             <span class="text-xs font-bold text-gray-600">D{{idx+1}} {{day.date}}</span>
+                             <div class="flex gap-1">
+                                 <button @click="moveDay(idx, -1)" :disabled="idx===0" class="w-6 h-6 bg-gray-100 rounded text-gray-500 disabled:opacity-30 flex items-center justify-center active:scale-90"><i class="fa-solid fa-arrow-up text-xs"></i></button>
+                                 <button @click="moveDay(idx, 1)" :disabled="idx===tripDays.length-1" class="w-6 h-6 bg-gray-100 rounded text-gray-500 disabled:opacity-30 flex items-center justify-center active:scale-90"><i class="fa-solid fa-arrow-down text-xs"></i></button>
+                             </div>
+                         </div>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-1">* 調整後會自動同步</p>
+                </div>
+
                 <div class="mb-4">
                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">Members</label>
                     <div class="flex gap-2 mb-2"><input v-model="newMemberName" placeholder="名" class="flex-1 bg-gray-100 rounded-lg px-3 py-2 text-sm outline-none"><button @click="addMember" class="bg-gray-800 text-white px-3 rounded-lg">+</button></div>
@@ -524,6 +539,23 @@
                 // Actions
                 function addDay() { tripDays.value.push({id: Date.now(), date: 'New Day', title: '', items: []}); activeDayIndex.value = tripDays.value.length - 1; }
                 
+                function moveDay(index, direction) {
+                    const newIndex = index + direction;
+                    if (newIndex < 0 || newIndex >= tripDays.value.length) return;
+                    
+                    // Swap elements
+                    const temp = tripDays.value[index];
+                    tripDays.value[index] = tripDays.value[newIndex];
+                    tripDays.value[newIndex] = temp;
+                    
+                    // Adjust active index if needed
+                    if (activeDayIndex.value === index) {
+                        activeDayIndex.value = newIndex;
+                    } else if (activeDayIndex.value === newIndex) {
+                        activeDayIndex.value = index;
+                    }
+                }
+
                 function openItineraryModal() { isEditing.value = false; formItinerary.value = {time:'10:00', title:'', location:'', transport:'', desc:''}; showItineraryModal.value = true; }
                 function editItem(item) { isEditing.value = true; editingId.value = item.id; formItinerary.value = {...item}; showItineraryModal.value = true; }
                 function saveItinerary() {
@@ -562,22 +594,12 @@
                     if(!formFood.value.name) return;
 
                     if (isEditing.value && editingId.value) {
-                        // 編輯模式
                         const index = customFoodSpots.value.findIndex(f => f.id === editingId.value);
                         if (index !== -1) {
-                            customFoodSpots.value[index] = { 
-                                ...formFood.value, 
-                                id: editingId.value, 
-                                isCustom: true 
-                            };
+                            customFoodSpots.value[index] = { ...formFood.value, id: editingId.value, isCustom: true };
                         }
                     } else {
-                        // 新增模式
-                        customFoodSpots.value.unshift({
-                            ...formFood.value, 
-                            id: Date.now(), 
-                            isCustom: true
-                        });
+                        customFoodSpots.value.unshift({ ...formFood.value, id: Date.now(), isCustom: true });
                     }
                     showFoodModal.value = false;
                 }
@@ -729,7 +751,7 @@
                     foodCategories, filteredFoodSpots, activeFoodCategory, calcTHB, calcHKD, currentRate,
                     aiInput, aiMessages, isAILoading, hasGeminiKey, tempApiKey,
                     
-                    addDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
+                    addDay, moveDay, openItineraryModal, saveItinerary, editItem, deleteItinerary,
                     openFoodModal, saveFood, deleteCustomFood, editFood, 
                     openExpenseModal, saveExpense, deleteExpense,
                     addMember, removeMember, showThaiAddress, openMap,
